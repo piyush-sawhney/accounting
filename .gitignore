@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 instance/
+exports/
 *.db
 app.py.backup
 =======

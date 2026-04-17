@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Invoice Management - KNAPS Invoicing{% endblock %}
+{% block title %}Invoice Management - KNAPS Invoice Management Software{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -99,12 +99,9 @@
                 </form>
             </div>
             <div class="col-auto">
-                <form action="{{ url_for('batch_delete') }}" method="POST" id="deleteForm" onsubmit="return confirm('Are you sure you want to delete selected invoices?');">
-                    <input type="hidden" name="invoice_ids" id="delete_ids">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-trash-fill me-1"></i> Delete Selected
-                    </button>
-                </form>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="deleteBtn" disabled data-bs-toggle="modal" data-bs-target="#deleteInvoicesModal">
+                    <i class="bi bi-trash-fill me-1"></i> Delete Selected
+                </button>
             </div>
             <div class="col-auto">
                 {% if pending_count > 0 %}
@@ -249,7 +246,36 @@
                             {% endfor %}
                         </tbody>
                     </table>
+</div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteInvoicesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to delete <strong id="deleteInvoiceCount">0</strong> invoice(s):</p>
+                <ul class="mb-3">
+                    <li><span id="lockedDeleteCount">0</span> locked invoice(s) - <span class="text-muted">will NOT be deleted</span></li>
+                    <li><span id="unlockedDeleteCount">0</span> unlocked invoice(s) - <span class="text-danger">will be deleted</span></li>
+                </ul>
+                <div class="alert alert-warning border-0" style="border-radius: var(--m3-radius-medium);">
+                    <i class="bi bi-exclamation-triangle me-2"></i>This action cannot be undone.
                 </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('batch_delete') }}" method="POST" id="deleteForm">
+                    <input type="hidden" name="invoice_ids" id="delete_ids">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i> Delete
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -281,11 +307,40 @@
             syncBtn.disabled = selectedIds.length === 0;
         }
         
+        // Enable/disable delete button
+        const deleteBtn = document.getElementById('deleteBtn');
+        if (deleteBtn) {
+            deleteBtn.disabled = selectedIds.length === 0;
+        }
+        
         // Update sync modal count
         const syncCount = document.getElementById('syncCount');
         if (syncCount) {
             syncCount.textContent = selectedIds.length;
         }
+        
+        // Update delete modal count
+        const deleteCount = document.getElementById('deleteInvoiceCount');
+        if (deleteCount) {
+            deleteCount.textContent = selectedIds.length;
+        }
+        
+        // Count locked vs unlocked
+        let lockedCount = 0;
+        let unlockedCount = 0;
+        selectedIds.forEach(id => {
+            const row = document.querySelector(`input[value="${id}"]`)?.closest('tr');
+            if (row?.querySelector('[title="Locked"]') || row?.querySelector('.bi-lock-fill')) {
+                lockedCount++;
+            } else {
+                unlockedCount++;
+            }
+        });
+        
+        const lockedEl = document.getElementById('lockedDeleteCount');
+        const unlockedEl = document.getElementById('unlockedDeleteCount');
+        if (lockedEl) lockedEl.textContent = lockedCount;
+        if (unlockedEl) unlockedEl.textContent = unlockedCount;
     }
 
 document.addEventListener('DOMContentLoaded', function() {

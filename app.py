@@ -243,6 +243,57 @@ def current_month():
     return datetime.now().month
 
 
+def get_fy_short():
+    fy = get_fiscal_year()
+    return fy.replace("-", "_")
+
+
+def get_month_name(month_num):
+    months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ]
+    return months[month_num - 1] if 1 <= month_num <= 12 else ""
+
+
+def sanitize_filename(name):
+    import re
+
+    name = str(name).strip()
+    name = re.sub(r'[<>:"/\\|?*&]', "_", name)
+    name = re.sub(r"_+", "_", name)
+    return name.strip("_")
+
+
+def get_export_path(invoice):
+    fy_short = get_fy_short()
+    month_name = (
+        get_month_name(invoice.invoice_date.month)
+        if invoice.invoice_date
+        else "Unknown"
+    )
+    party_name = sanitize_filename(
+        invoice.party_name or invoice.party.name if invoice.party else "Unknown"
+    )
+    invoice_no = sanitize_filename(invoice.invoice_no or f"invoice_{invoice.id}")
+    return os.path.join(
+        app.config["EXPORT_FOLDER"],
+        fy_short,
+        month_name,
+        f"{party_name}_{invoice_no}.pdf",
+    )
+
+
 def get_greeting():
     hour = datetime.now().hour
     if hour < 12:
@@ -521,22 +572,48 @@ def dashboard():
         "Feb",
         "Mar",
     ]
+
     chart_labels = []
     chart_data = []
 
-    for i in range(6, 0, -1):
-        target_month = (now.month - i + 12) % 12 + 1
-        target_year = current_year if (now.month - i) >= 0 else current_year - 1
-        if now.month - i <= 0:
-            target_year = current_year - 1
+    month_names = [
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+        "Jan",
+        "Feb",
+        "Mar",
+    ]
+
+    for i in range(5, -1, -1):
+        m = now.month - i
+        y = now.year
+        if m < 1:
+            m += 12
+            y -= 1
+
+        start = f"{y}-{m:02d}-01"
+        if m == 12:
+            end = f"{y + 1}-01-01"
+        elif m == now.month and i == 0:
+            end = f"{y + 1}-13-01"
+        else:
+            end = f"{y}-{m + 1:02d}-01"
+
         month_invoices = Invoice.query.filter(
-            db.extract("month", Invoice.invoice_date) == target_month,
-            db.extract("year", Invoice.invoice_date) == target_year,
+            Invoice.invoice_date >= start, Invoice.invoice_date < end
         ).all()
+
         revenue = sum(
             inv.calculate_gst().get("subtotal", 0) or 0 for inv in month_invoices
         )
-        chart_labels.append(months[target_month - 1])
+        chart_labels.append(month_names[(m - 4 + 12) % 12])
         chart_data.append(revenue)
 
     this_month_party_stats = {}
@@ -911,6 +988,15 @@ def edit_party(party_id):
 @app.route("/party/delete/<int:party_id>")
 def delete_party(party_id):
     party = Party.query.get_or_404(party_id)
+
+    invoice_count = Invoice.query.filter_by(party_id=party_id).count()
+    if invoice_count > 0:
+        flash(
+            f"Cannot delete party with {invoice_count} existing invoice(s). Delete invoices first.",
+            "danger",
+        )
+        return redirect(url_for("parties"))
+
     db.session.delete(party)
     db.session.commit()
     flash("Party deleted successfully", "success")
@@ -1142,13 +1228,8 @@ def generate_pdf(invoice_id):
         },
     )
 
-    # Replace / with _ for filename safety
-    safe_filename = (
-        invoice.invoice_no.replace("/", "_")
-        if invoice.invoice_no
-        else f"invoice_{invoice.id}"
-    )
-    pdf_path = os.path.join(app.config["EXPORT_FOLDER"], f"{safe_filename}.pdf")
+    pdf_path = get_export_path(invoice)
+    os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
 
     HTML(string=html_content).write_pdf(pdf_path)
 
@@ -1210,20 +1291,12 @@ def batch_export():
                     "state_code": Settings.get("state_code", ""),
                 },
             )
-            safe_filename = (
-                invoice.invoice_no.replace("/", "_")
-                if invoice.invoice_no
-                else f"invoice_{invoice.id}"
-            )
-            pdf_path = os.path.join(app.config["EXPORT_FOLDER"], f"{safe_filename}.pdf")
+            pdf_path = get_export_path(invoice)
+            os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
 
             HTML(string=html_content).write_pdf(pdf_path)
 
-            zip_filename = (
-                f"{invoice.invoice_no}.pdf"
-                if invoice.invoice_no
-                else f"invoice_{invoice.id}.pdf"
-            )
+            zip_filename = os.path.basename(pdf_path)
             zip_file.write(pdf_path, zip_filename)
             os.remove(pdf_path)
 
@@ -1796,6 +1869,14 @@ def currency_filter(value):
         return f"{float(value):,.2f}"
     except (ValueError, TypeError):
         return "0.00"
+
+
+@app.template_filter("max")
+def max_filter(value):
+    try:
+        return max(value) if value else 0
+    except (TypeError, ValueError):
+        return 0
 
 
 @app.context_processor

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Parties - KNAPS Invoicing{% endblock %}
+{% block title %}Parties - KNAPS Invoice Management Software{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -118,9 +118,9 @@
                                         <a href="{{ url_for('edit_party', party_id=party.id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="{{ url_for('delete_party', party_id=party.id) }}" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Are you sure?')">
+                                        <button type="button" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="modal" data-bs-target="#deletePartyModal" data-party-id="{{ party.id }}" data-party-name="{{ party.name }}">
                                             <i class="bi bi-trash"></i>
-                                        </a>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -186,6 +186,24 @@
     </div>
 </div>
 
+<div class="modal fade" id="deletePartyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Are you sure you want to delete party <strong id="deletePartyName"></strong>?</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <a href="" type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</a>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% if not parties %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -198,6 +216,17 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        var deletePartyModal = document.getElementById('deletePartyModal');
+        if (deletePartyModal) {
+            deletePartyModal.addEventListener('show.bs.modal', function(event) {
+                var button = event.relatedTarget;
+                var partyId = button.getAttribute('data-party-id');
+                var partyName = button.getAttribute('data-party-name');
+                document.getElementById('deletePartyName').textContent = partyName;
+                document.getElementById('confirmDeleteBtn').href = '/party/delete/' + partyId;
+            });
+        }
+
         const selectAll = document.getElementById('selectAll');
         if (selectAll) {
             selectAll.addEventListener('change', function() {

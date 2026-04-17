@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - KNAPS Invoicing{% endblock %}
+{% block title %}Dashboard - KNAPS Invoice Management Software{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -88,7 +88,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h4 fw-semibold mb-1">{{ greeting }} 👋</h1>
-            <p class="text-muted mb-0">{{ company_name if company_name else 'KNAPS Invoicing' }}</p>
+            <p class="text-muted mb-0">{{ company_name if company_name else 'KNAPS Invoice Management Software' }}</p>
         </div>
         <div class="d-flex gap-2">
             <a href="{{ url_for('create_invoice') }}" class="btn btn-primary">
@@ -98,28 +98,107 @@
     </div>
     
     <div class="row g-4 mb-4">
-        <div class="col-md-4">
-            <div class="card kpi-card text-center">
-                <div class="kpi-value">₹{{ this_month_revenue | currency }}</div>
-                <span class="label" style="color: var(--m3-scheme-on-surface-variant); text-transform: uppercase; font-size: 0.7rem; font-weight: 500;">This Month Revenue</span>
-                {% if revenue_change != 0 %}
-                <div class="kpi-change {% if revenue_change > 0 %}up{% else %}down{% endif %}">
-                    {% if revenue_change > 0 %}↑{% else %}↓{% endif %} {{ "%.1f"|format(revenue_change) }}% vs last month
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <div class="text-muted small fw-medium text-uppercase" style="letter-spacing: 0.5px;">This Month Revenue</div>
+                            <div class="h2 fw-bold mb-0" style="color: #1e293b;">₹{{ this_month_revenue | currency }}</div>
+                            {% if revenue_change != 0 %}
+                            <div class="{% if revenue_change > 0 %}text-success{% else %}text-danger{% endif %} small fw-medium mt-1">
+                                <i class="bi {% if revenue_change > 0 %}bi-arrow-up-circle-fill{% else %}bi-arrow-down-circle-fill{% endif %} me-1"></i>
+                                {{ "%.1f"|format(revenue_change) }}% vs last month
+                            </div>
+                            {% endif %}
+                        </div>
+                        <span class="badge bg-light text-dark px-3 py-2 rounded-pill">
+                            <i class="bi bi-graph-up me-1"></i>6-Month Trend
+                        </span>
+                    </div>
+                    <div class="flex-grow-1" style="min-height: 100px;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
+                        {% for label in chart_labels %}
+                        <div class="text-center flex-fill">
+                            <div class="small fw-medium" style="color: {% if loop.last %}#4f46e5{% else %}#64748b{% endif %};">{{ label }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+                    <script>
+                    (function() {
+                        var ctx = document.getElementById('trendChart').getContext('2d');
+                        var chartData = {{ chart_data|tojson }};
+                        var maxVal = Math.max(...chartData, 1);
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: {{ chart_labels|tojson }},
+                                datasets: [{
+                                    data: chartData,
+                                    borderColor: '#4f46e5',
+                                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                    borderWidth: 2,
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointRadius: 0,
+                                    pointHoverRadius: 6,
+                                    pointBackgroundColor: '#4f46e5',
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        backgroundColor: '#1e293b',
+                                        titleColor: '#fff',
+                                        bodyColor: '#fff',
+                                        padding: 10,
+                                        cornerRadius: 8,
+                                        displayColors: false,
+                                        callbacks: {
+                                            label: function(ctx) {
+                                                return '₹' + ctx.raw.toLocaleString('en-IN');
+                                            }
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    x: { display: false },
+                                    y: {
+                                        display: false,
+                                        min: 0,
+                                        max: maxVal * 1.1
+                                    }
+                                },
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
+                                }
+                            }
+                        });
+                    })();
+                    </script>
                 </div>
-                {% endif %}
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card kpi-card text-center">
-                <div class="kpi-value">{{ pending_count }}</div>
-                <span class="label" style="color: var(--m3-scheme-on-surface-variant); text-transform: uppercase; font-size: 0.7rem; font-weight: 500;">Pending Invoices</span>
-                <div class="text-muted small mt-2">₹{{ "%.0f"|format(pending_amount) }} awaiting</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card kpi-card text-center">
-                <div class="kpi-value">{{ invoice_count }}</div>
-                <span class="label" style="color: var(--m3-scheme-on-surface-variant); text-transform: uppercase; font-size: 0.7rem; font-weight: 500;">Unlocked Invoices</span>
+            <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
+                <div class="card-body text-center p-4 d-flex flex-column justify-content-center">
+                    <div class="text-muted small fw-medium text-uppercase mb-3" style="letter-spacing: 0.5px;">Pending Invoices</div>
+                    <div class="display-3 fw-bold mb-2" style="color: #4f46e5;">{{ pending_count }}</div>
+                    {% if pending_count > 0 %}
+                    <div class="text-muted small">₹{{ "%.0f"|format(pending_amount) }} awaiting</div>
+                    {% else %}
+                    <div class="text-success fw-medium"><i class="bi bi-check-circle-fill me-1"></i>All numbered</div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
