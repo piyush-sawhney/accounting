@@ -1,0 +1,971 @@
+import os
+import csv
+import io
+import zipfile
+from datetime import datetime
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    send_file,
+    jsonify,
+)
+from werkzeug.utils import secure_filename
+from weasyprint import HTML
+
+from models import db, Settings, Party, Invoice, InvoiceItem
+
+app = Flask(__name__)
+app.config["SECRET_KEY"] = "gst-invoice-secret-key-2024"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///gst_invoices.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["UPLOAD_FOLDER"] = "uploads"
+app.config["EXPORT_FOLDER"] = "exports"
+app.config["LOGO_FOLDER"] = "logos"
+
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+os.makedirs(app.config["EXPORT_FOLDER"], exist_ok=True)
+os.makedirs(app.config["LOGO_FOLDER"], exist_ok=True)
+
+db.init_app(app)
+
+
+def parse_date(date_str):
+    """Parse date from various formats"""
+    if not date_str:
+        return None
+    date_str = date_str.strip()
+    formats = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def parse_number(value):
+    """Parse numeric value from various formats (handles commas, currency symbols)"""
+    if not value:
+        return 0.0
+    value = str(value).strip()
+    value = value.replace("?", "").replace("₹", "").replace(",", "").replace("'", "")
+    try:
+        return float(value)
+    except ValueError:
+        return 0.0
+
+
+def parse_percentage(value):
+    """Parse percentage value (handles % sign)"""
+    if not value:
+        return 0.0
+    value = str(value).strip().replace("%", "")
+    try:
+        return float(value)
+    except ValueError:
+        return 0.0
+
+
+def parse_tax_type(tax_type):
+    """Normalize tax type"""
+    if not tax_type:
+        return "INTER"
+    tax_type = tax_type.strip().upper()
+    if tax_type in ["INTRA", "INNERS", "INRA"]:
+        return "INTRA"
+    return "INTER"
+
+
+def extract_pan_from_gstin(gstin):
+    """Extract PAN from GSTIN (digits 3-12)"""
+    if not gstin or len(gstin) < 12:
+        return ""
+    return gstin[2:12].upper()
+
+
+def number_to_words(num):
+    """Convert number to words format: 'Nineteen Thousand Six Hundred Forty Only and Eighty Four Paisa'"""
+    num = float(num)
+    if num == 0:
+        return "Zero Only"
+
+    # Define word arrays
+    ones = [
+        "",
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+        "Eight",
+        "Nine",
+        "Ten",
+        "Eleven",
+        "Twelve",
+        "Thirteen",
+        "Fourteen",
+        "Fifteen",
+        "Sixteen",
+        "Seventeen",
+        "Eighteen",
+        "Nineteen",
+    ]
+    tens = [
+        "",
+        "",
+        "Twenty",
+        "Thirty",
+        "Forty",
+        "Fifty",
+        "Sixty",
+        "Seventy",
+        "Eighty",
+        "Ninety",
+    ]
+    thousands = ["", "Thousand", "Million", "Billion"]
+
+    def convert_hundreds(n):
+        """Convert number less than 1000 to words"""
+        words = []
+        if n >= 100:
+            words.append(ones[n // 100])
+            words.append("Hundred")
+            n %= 100
+        if n >= 20:
+            words.append(tens[n // 10])
+            n %= 10
+        if n > 0:
+            words.append(ones[n])
+        return " ".join(words)
+
+    def convert_number(n):
+        """Convert any number to words"""
+        if n == 0:
+            return ""
+
+        words = []
+        thousand_index = 0
+
+        while n > 0:
+            remainder = n % 1000
+            if remainder > 0:
+                remainder_words = convert_hundreds(remainder)
+                if thousand_index > 0:
+                    remainder_words += " " + thousands[thousand_index]
+                words.insert(0, remainder_words)
+            n //= 1000
+            thousand_index += 1
+
+        return " ".join(words)
+
+    # Split into rupees and paise
+    integer_part = int(num)
+    paise = int(round((num - integer_part) * 100))
+
+    # Convert rupees to words
+    rupees_words = convert_number(integer_part)
+    if rupees_words:
+        rupees_words += " Only"
+    else:
+        rupees_words = "Zero Only"
+
+    # Convert paise to words if needed
+    if paise > 0:
+        paise_words = convert_number(paise)
+        result = f"{rupees_words} and {paise_words} Paisa"
+    else:
+        result = rupees_words
+
+    return result
+
+
+def get_fiscal_year():
+    now = datetime.now()
+    if now.month >= 4:
+        return f"{now.year}-{now.year + 1}"
+    else:
+        return f"{now.year - 1}-{now.year}"
+
+
+def generate_invoice_numbers():
+    pending_invoices = (
+        Invoice.query.filter(Invoice.invoice_no == None)
+        .order_by(Invoice.invoice_date)
+        .all()
+    )
+
+    if not pending_invoices:
+        return 0
+
+    last_invoice = (
+        Invoice.query.filter(Invoice.invoice_no != None)
+        .order_by(Invoice.invoice_no.desc())
+        .first()
+    )
+
+    if last_invoice:
+        last_no = last_invoice.invoice_no
+        parts = last_no.split("/")
+        if len(parts) == 2:
+            try:
+                seq = int(parts[1])
+            except:
+                seq = 0
+        else:
+            seq = 0
+    else:
+        seq = 0
+
+    for invoice in pending_invoices:
+        seq += 1
+        invoice_no = f"{get_fiscal_year().split('-')[0][-2:]}-{get_fiscal_year()[-2:]}/{str(seq).zfill(3)}"
+        invoice.invoice_no = invoice_no
+
+        total = invoice.calculate_gst()["total"]
+        invoice.total_in_words = number_to_words(total)
+
+    db.session.commit()
+    return len(pending_invoices)
+
+
+@app.route("/")
+def index():
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    if request.method == "POST":
+        Settings.set("company_name", request.form.get("company_name"))
+        Settings.set("arn_number", request.form.get("arn_number"))
+        Settings.set("address", request.form.get("address"))
+        Settings.set("gstin", request.form.get("gstin"))
+        Settings.set("pan", request.form.get("pan"))
+        Settings.set("place_of_supply", request.form.get("place_of_supply"))
+        Settings.set("state_code", request.form.get("state_code"))
+
+        if "logo" in request.files and request.files["logo"].filename:
+            logo = request.files["logo"]
+            logo_path = os.path.join(app.config["LOGO_FOLDER"], "logo.png")
+            logo.save(logo_path)
+            Settings.set("logo", "logo.png")
+
+        flash("Settings saved successfully", "success")
+        return redirect(url_for("settings"))
+
+    company_name = Settings.get("company_name", "")
+    arn_number = Settings.get("arn_number", "")
+    address = Settings.get("address", "")
+    gstin = Settings.get("gstin", "")
+    pan = Settings.get("pan", "")
+    logo = Settings.get("logo", "")
+    place_of_supply = Settings.get("place_of_supply", "")
+    state_code = Settings.get("state_code", "")
+
+    return render_template(
+        "settings.html",
+        company_name=company_name,
+        arn_number=arn_number,
+        address=address,
+        gstin=gstin,
+        pan=pan,
+        logo=logo,
+        place_of_supply=place_of_supply,
+        state_code=state_code,
+    )
+
+
+@app.route("/dashboard")
+def dashboard():
+    year = request.args.get("year")
+    month = request.args.get("month")
+    search = request.args.get("search", "").strip()
+
+    query = Invoice.query
+
+    if year:
+        query = query.filter(db.extract("year", Invoice.invoice_date) == int(year))
+    if month:
+        query = query.filter(db.extract("month", Invoice.invoice_date) == int(month))
+    if search:
+        query = query.join(Party).filter(
+            db.or_(
+                Invoice.invoice_no.ilike(f"%{search}%"),
+                Invoice.reference_serial_no.ilike(f"%{search}%"),
+                Party.gstin.ilike(f"%{search}%"),
+                Party.name.ilike(f"%{search}%"),
+            )
+        )
+
+    invoices = query.order_by(Invoice.invoice_date.desc()).all()
+    parties = Party.query.all()
+    pending_count = Invoice.query.filter(Invoice.invoice_no == None).count()
+
+    all_invoices = Invoice.query.all()
+    years = sorted(
+        set(inv.invoice_date.year for inv in all_invoices if inv.invoice_date)
+    )
+    if not years:
+        years = [datetime.now().year]
+
+    return render_template(
+        "dashboard.html",
+        invoices=invoices,
+        parties=parties,
+        pending_count=pending_count,
+        selected_year=year,
+        selected_month=month,
+        search_query=search,
+        years=years,
+    )
+
+
+@app.route("/parties", methods=["GET", "POST"])
+def parties():
+    if request.method == "POST":
+        name = request.form.get("name")
+        gstin = request.form.get("gstin")
+        amc_code = request.form.get("amc_code")
+        pan = request.form.get("pan")
+        address = request.form.get("address")
+        state = request.form.get("state")
+        state_code = request.form.get("state_code")
+        email = request.form.get("email")
+        phone = request.form.get("phone")
+
+        existing = Party.query.filter_by(gstin=gstin).first()
+        if existing:
+            flash(f"Party with GSTIN {gstin} already exists", "danger")
+            return redirect(url_for("parties"))
+
+        party = Party(
+            name=name,
+            gstin=gstin,
+            amc_code=amc_code,
+            pan=pan,
+            address=address,
+            state=state,
+            state_code=state_code,
+            email=email,
+            phone=phone,
+        )
+        db.session.add(party)
+        db.session.commit()
+        flash("Party added successfully", "success")
+        return redirect(url_for("parties"))
+
+    parties = Party.query.all()
+    return render_template("parties.html", parties=parties)
+
+
+@app.route("/export/parties")
+def export_parties():
+    parties = Party.query.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "name",
+            "gstin",
+            "pan",
+            "amc_code",
+            "address",
+            "state",
+            "state_code",
+            "email",
+            "phone",
+        ]
+    )
+
+    for party in parties:
+        writer.writerow(
+            [
+                party.name,
+                party.gstin,
+                party.pan or "",
+                party.amc_code or "",
+                party.address or "",
+                party.state or "",
+                party.state_code or "",
+                party.email or "",
+                party.phone or "",
+            ]
+        )
+
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=f"parties_export_{datetime.now().strftime('%Y%m%d')}.csv",
+    )
+
+
+@app.route("/party/edit/<int:party_id>", methods=["GET", "POST"])
+def edit_party(party_id):
+    party = Party.query.get_or_404(party_id)
+
+    if request.method == "POST":
+        party.name = request.form.get("name")
+        party.gstin = request.form.get("gstin")
+        party.pan = request.form.get("pan")
+        party.amc_code = request.form.get("amc_code")
+        party.address = request.form.get("address")
+        party.state = request.form.get("state")
+        party.state_code = request.form.get("state_code")
+        party.email = request.form.get("email")
+        party.phone = request.form.get("phone")
+
+        existing = Party.query.filter(
+            Party.gstin == party.gstin, Party.id != party_id
+        ).first()
+        if existing:
+            flash(f"Party with GSTIN {party.gstin} already exists", "danger")
+            return redirect(url_for("edit_party", party_id=party_id))
+
+        db.session.commit()
+        flash("Party updated successfully", "success")
+        return redirect(url_for("parties"))
+
+    return render_template("edit_party.html", party=party)
+
+
+@app.route("/party/delete/<int:party_id>")
+def delete_party(party_id):
+    party = Party.query.get_or_404(party_id)
+    db.session.delete(party)
+    db.session.commit()
+    flash("Party deleted successfully", "success")
+    return redirect(url_for("parties"))
+
+
+@app.route("/invoice/create", methods=["GET", "POST"])
+def create_invoice():
+    parties = Party.query.all()
+
+    if request.method == "POST":
+        party_id = request.form.get("party_id")
+        reference_serial_no = request.form.get("reference_serial_no", "").strip()
+
+        if reference_serial_no:
+            existing = Invoice.query.filter(
+                Invoice.reference_serial_no == reference_serial_no
+            ).first()
+            if existing:
+                flash(
+                    f"Reference serial number {reference_serial_no} already exists",
+                    "danger",
+                )
+                return redirect(url_for("create_invoice"))
+
+        invoice_date = datetime.strptime(
+            request.form.get("invoice_date"), "%Y-%m-%d"
+        ).date()
+        tax_type = request.form.get("tax_type")
+        place_of_supply = request.form.get("place_of_supply")
+        sac_hsn_code = request.form.get("sac_hsn_code")
+        reverse_charge = float(request.form.get("reverse_charge") or 0)
+        is_rcm = request.form.get("is_rcm") == "on"
+        show_arn = request.form.get("show_arn") == "on"
+
+        invoice = Invoice(
+            reference_serial_no=reference_serial_no,
+            invoice_date=invoice_date,
+            party_id=party_id,
+            tax_type=tax_type,
+            place_of_supply=place_of_supply,
+            sac_hsn_code=sac_hsn_code,
+            reverse_charge=reverse_charge,
+            is_rcm=is_rcm,
+            show_arn=show_arn,
+        )
+        db.session.add(invoice)
+        db.session.flush()
+
+        items_desc = request.form.getlist("item_description[]")
+        items_taxable = request.form.getlist("item_taxable_value[]")
+        items_cgst_rate = request.form.getlist("item_cgst_rate[]")
+        items_sgst_rate = request.form.getlist("item_sgst_rate[]")
+        items_igst_rate = request.form.getlist("item_igst_rate[]")
+
+        for i in range(len(items_desc)):
+            if items_desc[i].strip():
+                taxable = float(items_taxable[i]) if i < len(items_taxable) else 0
+                cgst_rate = float(items_cgst_rate[i]) if i < len(items_cgst_rate) else 0
+                sgst_rate = float(items_sgst_rate[i]) if i < len(items_sgst_rate) else 0
+                igst_rate = float(items_igst_rate[i]) if i < len(items_igst_rate) else 0
+
+                cgst_amt = taxable * cgst_rate / 100 if tax_type == "INTRA" else 0
+                sgst_amt = taxable * sgst_rate / 100 if tax_type == "INTRA" else 0
+                igst_amt = taxable * igst_rate / 100 if tax_type == "INTER" else 0
+
+                item = InvoiceItem(
+                    invoice_id=invoice.id,
+                    description=items_desc[i],
+                    taxable_value=taxable,
+                    cgst_rate=cgst_rate,
+                    cgst_amt=cgst_amt,
+                    sgst_rate=sgst_rate,
+                    sgst_amt=sgst_amt,
+                    igst_rate=igst_rate,
+                    igst_amt=igst_amt,
+                )
+                db.session.add(item)
+
+        db.session.commit()
+        flash("Invoice created successfully", "success")
+        return redirect(url_for("dashboard"))
+
+    return render_template("create_invoice.html", parties=parties)
+
+
+@app.route("/invoice/<int:invoice_id>")
+def view_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    return render_template(
+        "invoice_preview.html",
+        invoice=invoice,
+        settings={
+            "company_name": Settings.get("company_name", ""),
+            "arn_number": Settings.get("arn_number", ""),
+            "address": Settings.get("address", ""),
+            "gstin": Settings.get("gstin", ""),
+            "pan": Settings.get("pan", ""),
+            "logo": Settings.get("logo", ""),
+        },
+    )
+
+
+@app.route("/invoice/delete/<int:invoice_id>")
+def delete_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    db.session.delete(invoice)
+    db.session.commit()
+    flash("Invoice deleted successfully", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/invoice/pdf/<int:invoice_id>")
+def generate_pdf(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+
+    html_content = render_template(
+        "invoice_pdf_template.html",
+        invoice=invoice,
+        settings={
+            "company_name": Settings.get("company_name", ""),
+            "arn_number": Settings.get("arn_number", ""),
+            "address": Settings.get("address", ""),
+            "gstin": Settings.get("gstin", ""),
+            "pan": Settings.get("pan", ""),
+            "logo": Settings.get("logo", ""),
+            "place_of_supply": Settings.get("place_of_supply", ""),
+            "state_code": Settings.get("state_code", ""),
+        },
+    )
+
+    # Replace / with _ for filename safety
+    safe_filename = (
+        invoice.invoice_no.replace("/", "_")
+        if invoice.invoice_no
+        else f"invoice_{invoice.id}"
+    )
+    pdf_path = os.path.join(app.config["EXPORT_FOLDER"], f"{safe_filename}.pdf")
+
+    HTML(string=html_content).write_pdf(pdf_path)
+
+    download_name = (
+        f"{invoice.invoice_no}.pdf"
+        if invoice.invoice_no
+        else f"invoice_{invoice.id}.pdf"
+    )
+    return send_file(pdf_path, as_attachment=True, download_name=download_name)
+
+
+@app.route("/invoice/preview-html/<int:invoice_id>")
+def preview_html(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    return render_template("invoice_print.html", invoice=invoice)
+
+
+@app.route("/invoice/generate-numbers", methods=["POST"])
+def generate_numbers():
+    count = generate_invoice_numbers()
+    if count > 0:
+        flash(f"Generated invoice numbers for {count} invoices", "success")
+    else:
+        flash("No pending invoices to generate numbers for", "warning")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/batch/export", methods=["POST"])
+def batch_export():
+    invoice_ids = request.form.getlist("invoice_ids")
+
+    if not invoice_ids:
+        flash("No invoices selected", "warning")
+        return redirect(url_for("dashboard"))
+
+    zip_path = os.path.join(
+        app.config["EXPORT_FOLDER"],
+        f"invoices_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+    )
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for invoice_id in invoice_ids:
+            invoice = Invoice.query.get(invoice_id)
+            if not invoice or not invoice.invoice_no:
+                continue
+
+            html_content = render_template(
+                "invoice_pdf_template.html",
+                invoice=invoice,
+                settings={
+                    "company_name": Settings.get("company_name", ""),
+                    "arn_number": Settings.get("arn_number", ""),
+                    "address": Settings.get("address", ""),
+                    "gstin": Settings.get("gstin", ""),
+                    "pan": Settings.get("pan", ""),
+                    "logo": Settings.get("logo", ""),
+                    "place_of_supply": Settings.get("place_of_supply", ""),
+                    "state_code": Settings.get("state_code", ""),
+                },
+            )
+            safe_filename = (
+                invoice.invoice_no.replace("/", "_")
+                if invoice.invoice_no
+                else f"invoice_{invoice.id}"
+            )
+            pdf_path = os.path.join(app.config["EXPORT_FOLDER"], f"{safe_filename}.pdf")
+
+            HTML(string=html_content).write_pdf(pdf_path)
+
+            zip_filename = (
+                f"{invoice.invoice_no}.pdf"
+                if invoice.invoice_no
+                else f"invoice_{invoice.id}.pdf"
+            )
+            zip_file.write(pdf_path, zip_filename)
+            os.remove(pdf_path)
+
+    return send_file(zip_path, as_attachment=True, download_name=f"invoices_batch.zip")
+
+
+@app.route("/import/parties", methods=["GET", "POST"])
+def import_parties():
+    if request.method == "POST":
+        file = request.files.get("csv_file")
+
+        if not file or file.filename == "":
+            flash("No file selected", "danger")
+            return redirect(url_for("import_parties"))
+
+        if not file.filename.endswith(".csv"):
+            flash("Please upload a CSV file", "danger")
+            return redirect(url_for("import_parties"))
+
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+
+        imported = 0
+        errors = []
+
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                gstin = (row.get("gstin") or "").strip().upper()
+                name = (row.get("name") or "").strip()
+                provided_pan = (row.get("pan") or "").strip().upper()
+                amc_code = (row.get("amc_code") or "").strip()
+                address = (row.get("address") or "").strip()
+                state = (row.get("state") or "").strip()
+                state_code = (row.get("state_code") or "").strip()
+
+                if not name or not gstin:
+                    errors.append(f"Row {row_num}: Missing name or GSTIN")
+                    continue
+
+                pan = provided_pan if provided_pan else extract_pan_from_gstin(gstin)
+
+                existing = Party.query.filter_by(gstin=gstin).first()
+                if existing:
+                    existing.name = name
+                    existing.pan = pan
+                    if amc_code:
+                        existing.amc_code = amc_code
+                    if address:
+                        existing.address = address
+                    if state:
+                        existing.state = state
+                    if state_code:
+                        existing.state_code = state_code
+                    imported += 1
+                else:
+                    party = Party(
+                        name=name,
+                        gstin=gstin,
+                        pan=pan,
+                        amc_code=amc_code,
+                        address=address,
+                        state=state,
+                        state_code=state_code,
+                    )
+                    db.session.add(party)
+                    imported += 1
+
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+
+        if imported > 0:
+            db.session.commit()
+            flash(f"Successfully imported {imported} parties", "success")
+
+        if errors:
+            for error in errors[:10]:
+                flash(error, "warning")
+
+        return redirect(url_for("parties"))
+
+    return render_template("import_parties.html")
+
+
+@app.route("/import/invoices", methods=["GET", "POST"])
+def import_invoices():
+    if request.method == "POST":
+        file = request.files.get("csv_file")
+
+        if not file or file.filename == "":
+            flash("No file selected", "danger")
+            return redirect(url_for("import_invoices"))
+
+        if not file.filename.endswith(".csv"):
+            flash("Please upload a CSV file", "danger")
+            return redirect(url_for("import_invoices"))
+
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+
+        imported = 0
+        errors = []
+
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                reference_serial_no = (row.get("reference_serial_no") or "").strip()
+
+                if reference_serial_no:
+                    existing = Invoice.query.filter(
+                        Invoice.reference_serial_no == reference_serial_no
+                    ).first()
+                    if existing:
+                        errors.append(
+                            f"Row {row_num}: Reference serial number {reference_serial_no} already exists"
+                        )
+                        continue
+
+                invoice_date_str = (row.get("invoice_date") or "").strip()
+                party_gstin = (row.get("party_gstin") or "").strip().upper()
+                description = (row.get("description") or "").strip()
+                sac_hsn_code = (row.get("sac_hsn_code") or "").strip()
+                taxable_value = parse_number(row.get("taxable_value"))
+                tax_type = parse_tax_type(row.get("tax_type"))
+                cgst_rate = parse_percentage(row.get("cgst_rate"))
+                sgst_rate = parse_percentage(row.get("sgst_rate"))
+                igst_rate = parse_percentage(row.get("igst_rate"))
+                if igst_rate == 0:
+                    igst_rate = 18
+                place_of_supply = (row.get("place_of_supply") or "").strip()
+                reverse_charge = parse_number(row.get("reverse_charge"))
+                is_rcm = (row.get("is_rcm") or "").strip().lower() == "yes"
+                show_arn = (row.get("show_arn") or "").strip().lower() != "no"
+
+                if not party_gstin or not invoice_date_str:
+                    errors.append(f"Row {row_num}: Missing GSTIN or Invoice Date")
+                    continue
+
+                party = Party.query.filter_by(gstin=party_gstin).first()
+                if not party:
+                    errors.append(
+                        f"Row {row_num}: Party with GSTIN {party_gstin} not found"
+                    )
+                    continue
+
+                invoice_date = parse_date(invoice_date_str)
+                if not invoice_date:
+                    errors.append(
+                        f"Row {row_num}: Invalid date format - {invoice_date_str}"
+                    )
+                    continue
+
+                invoice = Invoice(
+                    reference_serial_no=reference_serial_no,
+                    invoice_date=invoice_date,
+                    party_id=party.id,
+                    tax_type=tax_type,
+                    place_of_supply=place_of_supply,
+                    sac_hsn_code=sac_hsn_code,
+                    reverse_charge=reverse_charge,
+                    is_rcm=is_rcm,
+                    show_arn=show_arn,
+                )
+                db.session.add(invoice)
+                db.session.flush()
+
+                cgst_amt = taxable_value * cgst_rate / 100 if tax_type == "INTRA" else 0
+                sgst_amt = taxable_value * sgst_rate / 100 if tax_type == "INTRA" else 0
+                igst_amt = taxable_value * igst_rate / 100 if tax_type == "INTER" else 0
+
+                item = InvoiceItem(
+                    invoice_id=invoice.id,
+                    description=description,
+                    taxable_value=taxable_value,
+                    cgst_rate=cgst_rate,
+                    cgst_amt=cgst_amt,
+                    sgst_rate=sgst_rate,
+                    sgst_amt=sgst_amt,
+                    igst_rate=igst_rate,
+                    igst_amt=igst_amt,
+                )
+                db.session.add(item)
+                imported += 1
+
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+
+        if imported > 0:
+            db.session.commit()
+            flash(f"Successfully imported {imported} invoices", "success")
+
+        if errors:
+            for error in errors[:10]:
+                flash(error, "warning")
+
+        return redirect(url_for("dashboard"))
+
+    return render_template("import_invoices.html")
+
+
+@app.route("/invoice/edit/<int:invoice_id>", methods=["GET", "POST"])
+def edit_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    parties = Party.query.all()
+
+    if request.method == "POST":
+        invoice_no = request.form.get("invoice_no", "").strip()
+        reference_serial_no = request.form.get("reference_serial_no", "").strip()
+
+        if invoice_no:
+            existing = Invoice.query.filter(
+                Invoice.invoice_no == invoice_no, Invoice.id != invoice_id
+            ).first()
+            if existing:
+                flash(f"Invoice number {invoice_no} already exists", "danger")
+                return redirect(url_for("edit_invoice", invoice_id=invoice_id))
+
+        if reference_serial_no:
+            existing = Invoice.query.filter(
+                Invoice.reference_serial_no == reference_serial_no,
+                Invoice.id != invoice_id,
+            ).first()
+            if existing:
+                flash(
+                    f"Reference serial number {reference_serial_no} already exists",
+                    "danger",
+                )
+                return redirect(url_for("edit_invoice", invoice_id=invoice_id))
+
+        invoice.invoice_no = invoice_no or None
+        invoice.reference_serial_no = reference_serial_no or None
+        invoice.party_id = request.form.get("party_id")
+        invoice.invoice_date = datetime.strptime(
+            request.form.get("invoice_date"), "%Y-%m-%d"
+        ).date()
+        invoice.tax_type = request.form.get("tax_type")
+        invoice.place_of_supply = request.form.get("place_of_supply")
+        invoice.sac_hsn_code = request.form.get("sac_hsn_code")
+        invoice.reverse_charge = float(request.form.get("reverse_charge") or 0)
+        invoice.is_rcm = request.form.get("is_rcm") == "on"
+        invoice.show_arn = request.form.get("show_arn") == "on"
+
+        if invoice.invoice_no and not invoice.total_in_words:
+            invoice.total_in_words = number_to_words(invoice.calculate_gst()["total"])
+
+        for item in invoice.items:
+            db.session.delete(item)
+
+        items_desc = request.form.getlist("item_description[]")
+        items_taxable = request.form.getlist("item_taxable_value[]")
+        items_cgst_rate = request.form.getlist("item_cgst_rate[]")
+        items_sgst_rate = request.form.getlist("item_sgst_rate[]")
+        items_igst_rate = request.form.getlist("item_igst_rate[]")
+
+        tax_type = request.form.get("tax_type")
+
+        for i in range(len(items_desc)):
+            if items_desc[i].strip():
+                taxable = float(items_taxable[i]) if i < len(items_taxable) else 0
+                cgst_rate = float(items_cgst_rate[i]) if i < len(items_cgst_rate) else 0
+                sgst_rate = float(items_sgst_rate[i]) if i < len(items_sgst_rate) else 0
+                igst_rate = float(items_igst_rate[i]) if i < len(items_igst_rate) else 0
+
+                cgst_amt = taxable * cgst_rate / 100 if tax_type == "INTRA" else 0
+                sgst_amt = taxable * sgst_rate / 100 if tax_type == "INTRA" else 0
+                igst_amt = taxable * igst_rate / 100 if tax_type == "INTER" else 0
+
+                item = InvoiceItem(
+                    invoice_id=invoice.id,
+                    description=items_desc[i],
+                    taxable_value=taxable,
+                    cgst_rate=cgst_rate,
+                    cgst_amt=cgst_amt,
+                    sgst_rate=sgst_rate,
+                    sgst_amt=sgst_amt,
+                    igst_rate=igst_rate,
+                    igst_amt=igst_amt,
+                )
+                db.session.add(item)
+
+        db.session.commit()
+        flash("Invoice updated successfully", "success")
+        return redirect(url_for("dashboard"))
+
+    return render_template("edit_invoice.html", invoice=invoice, parties=parties)
+
+
+@app.template_filter("currency")
+def currency_filter(value):
+    return f"{value:,.2f}"
+
+
+@app.context_processor
+def inject_now():
+    from datetime import datetime
+
+    return dict(
+        current_date=datetime.utcnow().strftime("%Y-%m-%d"),
+        settings={
+            "company_name": Settings.get("company_name", ""),
+            "arn_number": Settings.get("arn_number", ""),
+            "address": Settings.get("address", ""),
+            "gstin": Settings.get("gstin", ""),
+            "pan": Settings.get("pan", ""),
+            "logo": Settings.get("logo", ""),
+            "place_of_supply": Settings.get("place_of_supply", ""),
+            "state_code": Settings.get("state_code", ""),
+        },
+    )
+
+
+def init_db():
+    with app.app_context():
+        db.create_all()
+
+
+if __name__ == "__main__":
+    init_db()
+    app.run(debug=True, host="0.0.0.0", port=5000)
