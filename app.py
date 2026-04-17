@@ -2,7 +2,6 @@ import os
 import csv
 import io
 import zipfile
-import calendar
 from datetime import datetime
 from flask import (
     Flask,
@@ -23,9 +22,9 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = "gst-invoice-secret-key-2024"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///gst_invoices.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["UPLOAD_FOLDER"] = "uploads"
+app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["EXPORT_FOLDER"] = "exports"
-app.config["LOGO_FOLDER"] = "logos"
+app.config["LOGO_FOLDER"] = "static/logos"
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["EXPORT_FOLDER"], exist_ok=True)
@@ -79,6 +78,37 @@ def parse_tax_type(tax_type):
     if tax_type in ["INTRA", "INNERS", "INRA"]:
         return "INTRA"
     return "INTER"
+
+
+def validate_tax_rates(tax_type, is_rcm, cgst_rate, sgst_rate, igst_rate):
+    """
+    Validate tax rates based on rules:
+    1. RCM only: no igst, cgst, sgst
+    2. INTER only: IGST, no cgst, no sgst
+    3. INTRA only: CGST + SGST, no igst
+
+    Returns (is_valid, error_message)
+    """
+    if is_rcm:
+        if cgst_rate > 0 or sgst_rate > 0 or igst_rate > 0:
+            return False, "RCM enabled - tax rates must be 0"
+        return True, None
+
+    if tax_type == "INTER":
+        if cgst_rate > 0 or sgst_rate > 0:
+            return False, "INTER state - IGST required, CGST/SGST must be 0"
+        if igst_rate <= 0:
+            return False, "INTER state - IGST rate is required"
+        return True, None
+
+    if tax_type == "INTRA":
+        if igst_rate > 0:
+            return False, "INTRA state - CGST/SGST required, IGST must be 0"
+        if cgst_rate <= 0 or sgst_rate <= 0:
+            return False, "INTRA state - CGST and SGST rates are required"
+        return True, None
+
+    return True, None
 
 
 def extract_pan_from_gstin(gstin):
@@ -186,18 +216,6 @@ def number_to_words(num):
     return result
 
 
-def get_fiscal_year_dates():
-    """Return (start_date, end_date) for the current Indian fiscal year"""
-    now = datetime.now()
-    if now.month >= 4:
-        start_date = datetime(now.year, 4, 1).date()
-        end_date = datetime(now.year + 1, 3, 31).date()
-    else:
-        start_date = datetime(now.year - 1, 4, 1).date()
-        end_date = datetime(now.year, 3, 31).date()
-    return start_date, end_date
-
-
 def get_fiscal_year():
     now = datetime.now()
     if now.month >= 4:
@@ -239,6 +257,7 @@ def generate_invoice_numbers():
         seq += 1
         invoice_no = f"{get_fiscal_year().split('-')[0][-2:]}-{get_fiscal_year()[-2:]}/{str(seq).zfill(3)}"
         invoice.invoice_no = invoice_no
+        invoice.locked = True
 
         total = invoice.calculate_gst()["total"]
         invoice.total_in_words = number_to_words(total)
@@ -252,78 +271,53 @@ def index():
     return redirect(url_for("dashboard"))
 
 
-@app.route("/dashboard")
-def dashboard():
-    fy_start, fy_end = get_fiscal_year_dates()
-    fy_invoices = Invoice.query.filter(
-        Invoice.invoice_date >= fy_start, Invoice.invoice_date <= fy_end
-    ).all()
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    if request.method == "POST":
+        Settings.set("company_name", request.form.get("company_name"))
+        Settings.set("arn_number", request.form.get("arn_number"))
+        Settings.set("address", request.form.get("address"))
+        Settings.set("gstin", request.form.get("gstin"))
+        Settings.set("pan", request.form.get("pan"))
+        Settings.set("place_of_supply", request.form.get("place_of_supply"))
+        Settings.set("state_code", request.form.get("state_code"))
 
-    total_revenue = 0.0
-    total_gst = 0.0
-    for inv in fy_invoices:
-        gst_data = inv.calculate_gst()
-        total_revenue += gst_data["total"]
-        total_gst += gst_data["cgst"] + gst_data["sgst"] + gst_data["igst"]
+        if "logo" in request.files and request.files["logo"].filename:
+            logo = request.files["logo"]
+            logo_path = os.path.join(app.config["LOGO_FOLDER"], "logo.png")
+            logo.save(logo_path)
+            Settings.set("logo", "logo.png")
 
-    # Monthly Revenue for Chart (Last 12 months)
-    monthly_data = []
-    labels = []
-    now = datetime.now()
-    for i in range(11, -1, -1):
-        # Calculate month and year
-        month_date = now.replace(day=1)  # start of current month
-        # Subtract i months
-        # Simple way: use a loop or dateutil.relativedelta
-        # Since I can't add libraries, I'll do it manually
-        m = now.month - i
-        y = now.year
-        while m <= 0:
-            m += 12
-            y -= 1
+        flash("Settings saved successfully", "success")
+        return redirect(url_for("settings"))
 
-        month_start = datetime(y, m, 1).date()
-        if m == 12:
-            month_end = datetime(y, 12, 31).date()
-        else:
-            # Find last day of month (roughly)
-            import calendar
-
-            last_day = calendar.monthrange(y, m)[1]
-            month_end = datetime(y, m, last_day).date()
-
-        month_revenue = sum(
-            inv.calculate_gst()["total"]
-            for inv in Invoice.query.filter(
-                Invoice.invoice_date >= month_start, Invoice.invoice_date <= month_end
-            ).all()
-        )
-
-        labels.append(month_start.strftime("%b %Y"))
-        monthly_data.append(round(month_revenue, 2))
-
-    pending_count = Invoice.query.filter(Invoice.invoice_no == None).count()
+    company_name = Settings.get("company_name", "")
+    arn_number = Settings.get("arn_number", "")
+    address = Settings.get("address", "")
+    gstin = Settings.get("gstin", "")
+    pan = Settings.get("pan", "")
+    logo = Settings.get("logo", "")
+    place_of_supply = Settings.get("place_of_supply", "")
+    state_code = Settings.get("state_code", "")
 
     return render_template(
-        "dashboard.html",
-        total_revenue=total_revenue,
-        total_gst=total_gst,
-        invoice_count=len(fy_invoices),
-        chart_labels=labels,
-        chart_data=monthly_data,
-        pending_count=pending_count,
+        "settings.html",
+        company_name=company_name,
+        arn_number=arn_number,
+        address=address,
+        gstin=gstin,
+        pan=pan,
+        logo=logo,
+        place_of_supply=place_of_supply,
+        state_code=state_code,
     )
 
 
-@app.route("/invoices")
-def manage_invoices():
+@app.route("/dashboard")
+def dashboard():
     year = request.args.get("year")
     month = request.args.get("month")
     search = request.args.get("search", "").strip()
-    sort_by = request.args.get("sort_by", "date")  # default sort by date
-    sort_dir = request.args.get("sort_dir", "desc")  # default descending
-    tax_type_filter = request.args.get("tax_type", "").strip()
-    party_filter = request.args.get("party", "").strip()
 
     query = Invoice.query
 
@@ -340,37 +334,8 @@ def manage_invoices():
                 Party.name.ilike(f"%{search}%"),
             )
         )
-    if tax_type_filter:
-        query = query.filter(Invoice.tax_type == tax_type_filter)
-    if party_filter:
-        query = query.filter(Invoice.party_id == party_filter)
 
-    # Apply sorting
-    if sort_by == "date":
-        if sort_dir == "asc":
-            query = query.order_by(Invoice.invoice_date.asc())
-        else:
-            query = query.order_by(Invoice.invoice_date.desc())
-    elif sort_by == "invoice_no":
-        if sort_dir == "asc":
-            query = query.order_by(Invoice.invoice_no.asc().nullslast())
-        else:
-            query = query.order_by(Invoice.invoice_no.desc().nullslast())
-    elif sort_by == "party":
-        if sort_dir == "asc":
-            query = query.join(Party).order_by(Party.name.asc())
-        else:
-            query = query.join(Party).order_by(Party.name.desc())
-    elif sort_by == "tax_type":
-        if sort_dir == "asc":
-            query = query.order_by(Invoice.tax_type.asc())
-        else:
-            query = query.order_by(Invoice.tax_type.desc())
-    else:
-        # Default fallback
-        query = query.order_by(Invoice.invoice_date.desc())
-
-    invoices = query.all()
+    invoices = query.order_by(Invoice.invoice_date.desc()).all()
     parties = Party.query.all()
     pending_count = Invoice.query.filter(Invoice.invoice_no == None).count()
 
@@ -381,55 +346,78 @@ def manage_invoices():
     if not years:
         years = [datetime.now().year]
 
+    all_invoices_for_year = Invoice.query.all()
+    total_revenue = sum(
+        inv.calculate_gst().get("subtotal", 0) or 0 for inv in all_invoices_for_year
+    )
+    total_gst = (
+        sum(inv.calculate_gst().get("total", 0) or 0 for inv in all_invoices_for_year)
+        - total_revenue
+    )
+    invoice_count = len(all_invoices_for_year)
+
+    months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    ]
+    chart_labels = []
+    chart_data = []
+    from datetime import timedelta
+
+    for i in range(6, 0, -1):
+        target_month = (
+            datetime.now().replace(day=1) - timedelta(days=1) * (i - 1)
+        ).month
+        target_year = (datetime.now().replace(day=1) - timedelta(days=1) * (i - 1)).year
+        month_invoices = Invoice.query.filter(
+            db.extract("month", Invoice.invoice_date) == target_month,
+            db.extract("year", Invoice.invoice_date) == target_year,
+        ).all()
+        revenue = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in month_invoices
+        )
+        chart_labels.append(f"{months[target_month - 1]} {target_year}")
+        chart_data.append(revenue)
+
     return render_template(
-        "invoice_management.html",
+        "dashboard.html",
         invoices=invoices,
         parties=parties,
         pending_count=pending_count,
         selected_year=year,
         selected_month=month,
         search_query=search,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        tax_type_filter=tax_type_filter,
-        party_filter=party_filter,
         years=years,
+        total_revenue=total_revenue,
+        total_gst=total_gst,
+        invoice_count=invoice_count,
+        chart_labels=chart_labels,
+        chart_data=chart_data,
     )
 
 
-@app.route("/settings", methods=["GET", "POST"])
-def settings():
-    if request.method == "POST":
-        company_name = request.form.get("company_name")
-        arn_number = request.form.get("arn_number")
-        address = request.form.get("address")
-        gstin = request.form.get("gstin")
-        pan = request.form.get("pan")
-        logo_file = request.files.get("logo")
-
-        Settings.set("company_name", company_name)
-        Settings.set("arn_number", arn_number)
-        Settings.set("address", address)
-        Settings.set("gstin", gstin)
-        Settings.set("pan", pan)
-
-        if logo_file and logo_file.filename != "":
-            filename = secure_filename(logo_file.filename)
-            logo_path = os.path.join(app.config["LOGO_FOLDER"], filename)
-            logo_file.save(logo_path)
-            Settings.set("logo", filename)
-
-        flash("Settings updated successfully", "success")
-        return redirect(url_for("settings"))
-
-    return render_template(
-        "settings.html",
-        company_name=Settings.get("company_name", ""),
-        arn_number=Settings.get("arn_number", ""),
-        address=Settings.get("address", ""),
-        gstin=Settings.get("gstin", ""),
-        pan=Settings.get("pan", ""),
-        logo=Settings.get("logo", ""),
+@app.route("/party/api/<int:party_id>")
+def party_api(party_id):
+    party = Party.query.get_or_404(party_id)
+    return jsonify(
+        {
+            "name": party.name,
+            "gstin": party.gstin,
+            "pan": party.pan,
+            "address": party.address,
+            "state": party.state,
+            "state_code": party.state_code,
+        }
     )
 
 
@@ -467,71 +455,28 @@ def parties():
         flash("Party added successfully", "success")
         return redirect(url_for("parties"))
 
-    # Get sorting and filtering parameters
-    sort_by = request.args.get("sort_by", "name")  # default sort by name
-    sort_dir = request.args.get("sort_dir", "asc")  # default ascending
-    search = request.args.get("search", "").strip()
-    state_filter = request.args.get("state", "").strip()
-
-    # Build query
-    query = Party.query
-
-    # Apply search filter
-    if search:
-        query = query.filter(
-            db.or_(
-                Party.name.ilike(f"%{search}%"),
-                Party.gstin.ilike(f"%{search}%"),
-            )
-        )
-
-    # Apply state filter
-    if state_filter:
-        query = query.filter(Party.state.ilike(f"%{state_filter}%"))
-
-    # Apply sorting
-    if sort_by == "name":
-        if sort_dir == "asc":
-            query = query.order_by(Party.name.asc())
-        else:
-            query = query.order_by(Party.name.desc())
-    elif sort_by == "gstin":
-        if sort_dir == "asc":
-            query = query.order_by(Party.gstin.asc())
-        else:
-            query = query.order_by(Party.gstin.desc())
-    elif sort_by == "state":
-        if sort_dir == "asc":
-            query = query.order_by(Party.state.asc())
-        else:
-            query = query.order_by(Party.state.desc())
-    else:
-        # Default fallback
-        query = query.order_by(Party.name.asc())
-
-    parties = query.all()
-
-    # Get unique states for filter dropdown
-    states = (
-        db.session.query(Party.state).distinct().filter(Party.state.isnot(None)).all()
-    )
-    states = [s[0] for s in states if s[0]]
-
-    return render_template(
-        "parties.html",
-        parties=parties,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        search=search,
-        state_filter=state_filter,
-        states=states,
-    )
+    parties = Party.query.all()
+    return render_template("parties.html", parties=parties)
 
 
 @app.route("/export/parties")
 def export_parties():
     parties = Party.query.all()
+    return export_parties_response(parties)
 
+
+@app.route("/export/parties/selected", methods=["POST"])
+def export_selected_parties():
+    ids_raw = request.form.get("party_ids", "")
+    party_ids = ids_raw.split(",") if ids_raw else []
+    if not party_ids or party_ids == [""]:
+        flash("No parties selected", "warning")
+        return redirect(url_for("parties"))
+    parties = Party.query.filter(Party.id.in_(party_ids)).all()
+    return export_parties_response(parties)
+
+
+def export_parties_response(parties):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -610,6 +555,77 @@ def delete_party(party_id):
     return redirect(url_for("parties"))
 
 
+@app.route("/invoices", methods=["GET"])
+def manage_invoices():
+    year = request.args.get("year")
+    month = request.args.get("month")
+    search = request.args.get("search", "").strip()
+    sort_by = request.args.get("sort_by", "invoice_no")
+    sort_dir = request.args.get("sort_dir", "desc")
+    selected_year = year
+    selected_month = month
+    search_query = search
+    tax_type_filter = request.args.get("tax_type", "")
+    party_filter = request.args.get("party", "")
+
+    query = Invoice.query.join(Party)
+
+    if year:
+        query = query.filter(db.extract("year", Invoice.invoice_date) == int(year))
+    if month:
+        query = query.filter(db.extract("month", Invoice.invoice_date) == int(month))
+    if search:
+        query = query.filter(
+            db.or_(
+                Invoice.invoice_no.ilike(f"%{search}%"),
+                Invoice.reference_serial_no.ilike(f"%{search}%"),
+                Party.gstin.ilike(f"%{search}%"),
+                Party.name.ilike(f"%{search}%"),
+            )
+        )
+    if tax_type_filter:
+        query = query.filter(Invoice.tax_type == tax_type_filter)
+    if party_filter:
+        query = query.filter(Invoice.party_id == int(party_filter))
+
+    sort_column = Invoice.invoice_no
+    if sort_by == "date":
+        sort_column = Invoice.invoice_date
+    elif sort_by == "party":
+        sort_column = Party.name
+
+    if sort_dir == "desc":
+        query = query.order_by(sort_column.desc())
+    else:
+        query = query.order_by(sort_column.asc())
+
+    invoices = query.all()
+    parties = Party.query.all()
+    pending_count = Invoice.query.filter(Invoice.invoice_no == None).count()
+
+    all_invoices = Invoice.query.all()
+    years = sorted(
+        set(inv.invoice_date.year for inv in all_invoices if inv.invoice_date)
+    )
+    if not years:
+        years = [datetime.now().year]
+
+    return render_template(
+        "invoice_management.html",
+        invoices=invoices,
+        parties=parties,
+        selected_year=selected_year,
+        selected_month=selected_month,
+        search_query=search_query,
+        years=years,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        tax_type_filter=tax_type_filter,
+        party_filter=party_filter,
+        pending_count=pending_count,
+    )
+
+
 @app.route("/invoice/create", methods=["GET", "POST"])
 def create_invoice():
     parties = Party.query.all()
@@ -617,6 +633,15 @@ def create_invoice():
     if request.method == "POST":
         party_id = request.form.get("party_id")
         reference_serial_no = request.form.get("reference_serial_no", "").strip()
+        sac_hsn_code = request.form.get("sac_hsn_code", "").strip()
+
+        if not party_id:
+            flash("Party selection is required.", "danger")
+            return redirect(url_for("create_invoice"))
+
+        if not sac_hsn_code:
+            flash("SAC/HSN code is required.", "danger")
+            return redirect(url_for("create_invoice"))
 
         if reference_serial_no:
             existing = Invoice.query.filter(
@@ -637,7 +662,11 @@ def create_invoice():
         sac_hsn_code = request.form.get("sac_hsn_code")
         reverse_charge = float(request.form.get("reverse_charge") or 0)
         is_rcm = request.form.get("is_rcm") == "on"
-        show_arn = request.form.get("show_arn") == "on"
+        distributor_code = request.form.get("distributor_code", "").strip()
+
+        if is_rcm and reverse_charge <= 0:
+            flash("Reverse Charge amount is required when RCM is enabled.", "danger")
+            return redirect(url_for("create_invoice"))
 
         invoice = Invoice(
             reference_serial_no=reference_serial_no,
@@ -648,8 +677,19 @@ def create_invoice():
             sac_hsn_code=sac_hsn_code,
             reverse_charge=reverse_charge,
             is_rcm=is_rcm,
-            show_arn=show_arn,
+            distributor_code=distributor_code,
         )
+
+        # Local copy of party details
+        party = Party.query.get(party_id)
+        if party:
+            invoice.party_name = party.name
+            invoice.party_address = party.address
+            invoice.party_gstin = party.gstin
+            invoice.party_pan = party.pan
+            invoice.party_state = party.state
+            invoice.party_state_code = party.state_code
+
         db.session.add(invoice)
         db.session.flush()
 
@@ -665,6 +705,13 @@ def create_invoice():
                 cgst_rate = float(items_cgst_rate[i]) if i < len(items_cgst_rate) else 0
                 sgst_rate = float(items_sgst_rate[i]) if i < len(items_sgst_rate) else 0
                 igst_rate = float(items_igst_rate[i]) if i < len(items_igst_rate) else 0
+
+                is_valid, error_msg = validate_tax_rates(
+                    tax_type, is_rcm, cgst_rate, sgst_rate, igst_rate
+                )
+                if not is_valid:
+                    flash(f"Item '{items_desc[i][:30]}': {error_msg}", "danger")
+                    return redirect(url_for("create_invoice"))
 
                 cgst_amt = taxable * cgst_rate / 100 if tax_type == "INTRA" else 0
                 sgst_amt = taxable * sgst_rate / 100 if tax_type == "INTRA" else 0
@@ -685,7 +732,7 @@ def create_invoice():
 
         db.session.commit()
         flash("Invoice created successfully", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("manage_invoices"))
 
     return render_template("create_invoice.html", parties=parties)
 
@@ -698,7 +745,6 @@ def view_invoice(invoice_id):
         invoice=invoice,
         settings={
             "company_name": Settings.get("company_name", ""),
-            "arn_number": Settings.get("arn_number", ""),
             "address": Settings.get("address", ""),
             "gstin": Settings.get("gstin", ""),
             "pan": Settings.get("pan", ""),
@@ -707,139 +753,13 @@ def view_invoice(invoice_id):
     )
 
 
-@app.route("/invoice/batch-lock", methods=["POST"])
-def batch_lock():
-    ids_raw = request.form.get("invoice_ids", "")
-    invoice_ids = ids_raw.split(",") if ids_raw else []
-    if not invoice_ids or invoice_ids == [""]:
-        flash("No invoices selected", "warning")
-        return redirect(url_for("manage_invoices"))
-
-    count = 0
-    for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
-        if inv and inv.invoice_no and inv.invoice_date:
-            inv.locked = True
-            count += 1
-
+@app.route("/invoice/delete/<int:invoice_id>")
+def delete_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    db.session.delete(invoice)
     db.session.commit()
-    flash(
-        f"Locked {count} invoices. Invoices without number/date were skipped.",
-        "success",
-    )
-    return redirect(url_for("manage_invoices"))
-
-
-@app.route("/invoice/batch-unlock", methods=["POST"])
-def batch_unlock():
-    ids_raw = request.form.get("invoice_ids", "")
-    invoice_ids = ids_raw.split(",") if ids_raw else []
-    if not invoice_ids or invoice_ids == [""]:
-        flash("No invoices selected", "warning")
-        return redirect(url_for("manage_invoices"))
-
-    count = 0
-    for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
-        if inv:
-            inv.locked = False
-            count += 1
-
-    db.session.commit()
-    flash(f"Unlocked {count} invoices", "success")
-    return redirect(url_for("manage_invoices"))
-
-
-@app.route("/invoice/batch-delete", methods=["POST"])
-def batch_delete():
-    ids_raw = request.form.get("invoice_ids", "")
-    invoice_ids = ids_raw.split(",") if ids_raw else []
-    if not invoice_ids or invoice_ids == [""]:
-        flash("No invoices selected", "warning")
-        return redirect(url_for("manage_invoices"))
-
-    locked_ids = []
-    deleted_count = 0
-
-    for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
-        if inv:
-            if inv.locked:
-                locked_ids.append(inv.invoice_no or str(inv.id))
-            else:
-                db.session.delete(inv)
-                deleted_count += 1
-
-    db.session.commit()
-
-    if locked_ids:
-        flash(f"Could not delete locked invoices: {', '.join(locked_ids)}", "warning")
-    if deleted_count > 0:
-        flash(f"Deleted {deleted_count} invoices", "success")
-
-    return redirect(url_for("manage_invoices"))
-
-    count = 0
-    for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
-        if inv and inv.invoice_no and inv.invoice_date:
-            inv.locked = True
-            count += 1
-
-    db.session.commit()
-    flash(
-        f"Locked {count} invoices. Invoices without number/date were skipped.",
-        "success",
-    )
-    return redirect(url_for("manage_invoices"))
-
-
-@app.route("/invoice/batch-unlock", methods=["POST"])
-def batch_unlock():
-    invoice_ids = request.form.getlist("invoice_ids")
-    if not invoice_ids:
-        flash("No invoices selected", "warning")
-        return redirect(url_for("manage_invoices"))
-
-    count = 0
-    for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
-        if inv:
-            inv.locked = False
-            count += 1
-
-    db.session.commit()
-    flash(f"Unlocked {count} invoices", "success")
-    return redirect(url_for("manage_invoices"))
-
-
-@app.route("/invoice/batch-delete", methods=["POST"])
-def batch_delete():
-    invoice_ids = request.form.getlist("invoice_ids")
-    if not invoice_ids:
-        flash("No invoices selected", "warning")
-        return redirect(url_for("manage_invoices"))
-
-    locked_ids = []
-    deleted_count = 0
-
-    for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
-        if inv:
-            if inv.locked:
-                locked_ids.append(inv.invoice_no or str(inv.id))
-            else:
-                db.session.delete(inv)
-                deleted_count += 1
-
-    db.session.commit()
-
-    if locked_ids:
-        flash(f"Could not delete locked invoices: {', '.join(locked_ids)}", "warning")
-    if deleted_count > 0:
-        flash(f"Deleted {deleted_count} invoices", "success")
-
-    return redirect(url_for("manage_invoices"))
+    flash("Invoice deleted successfully", "success")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/invoice/pdf/<int:invoice_id>")
@@ -851,7 +771,6 @@ def generate_pdf(invoice_id):
         invoice=invoice,
         settings={
             "company_name": Settings.get("company_name", ""),
-            "arn_number": Settings.get("arn_number", ""),
             "address": Settings.get("address", ""),
             "gstin": Settings.get("gstin", ""),
             "pan": Settings.get("pan", ""),
@@ -892,16 +811,16 @@ def generate_numbers():
         flash(f"Generated invoice numbers for {count} invoices", "success")
     else:
         flash("No pending invoices to generate numbers for", "warning")
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("manage_invoices"))
 
 
 @app.route("/batch/export", methods=["POST"])
 def batch_export():
-    ids_raw = request.form.get("invoice_ids", "")
-    invoice_ids = ids_raw.split(",") if ids_raw else []
-    if not invoice_ids or invoice_ids == [""]:
+    invoice_ids = request.form.getlist("invoice_ids")
+
+    if not invoice_ids:
         flash("No invoices selected", "warning")
-        return redirect(url_for("manage_invoices"))
+        return redirect(url_for("dashboard"))
 
     zip_path = os.path.join(
         app.config["EXPORT_FOLDER"],
@@ -909,8 +828,8 @@ def batch_export():
     )
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for inv_id in invoice_ids:
-            invoice = Invoice.query.get(inv_id)
+        for invoice_id in invoice_ids:
+            invoice = Invoice.query.get(invoice_id)
             if not invoice or not invoice.invoice_no:
                 continue
 
@@ -1042,22 +961,13 @@ def import_invoices():
         csv_reader = csv.DictReader(stream)
 
         imported = 0
+        updated = 0
         errors = []
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
+                invoice_no = (row.get("invoice_no") or "").strip()
                 reference_serial_no = (row.get("reference_serial_no") or "").strip()
-
-                if reference_serial_no:
-                    existing = Invoice.query.filter(
-                        Invoice.reference_serial_no == reference_serial_no
-                    ).first()
-                    if existing:
-                        errors.append(
-                            f"Row {row_num}: Reference serial number {reference_serial_no} already exists"
-                        )
-                        continue
-
                 invoice_date_str = (row.get("invoice_date") or "").strip()
                 party_gstin = (row.get("party_gstin") or "").strip().upper()
                 description = (row.get("description") or "").strip()
@@ -1067,12 +977,10 @@ def import_invoices():
                 cgst_rate = parse_percentage(row.get("cgst_rate"))
                 sgst_rate = parse_percentage(row.get("sgst_rate"))
                 igst_rate = parse_percentage(row.get("igst_rate"))
-                if igst_rate == 0:
-                    igst_rate = 18
                 place_of_supply = (row.get("place_of_supply") or "").strip()
                 reverse_charge = parse_number(row.get("reverse_charge"))
-                is_rcm = (row.get("is_rcm") or "").strip().lower() == "yes"
-                show_arn = (row.get("show_arn") or "").strip().lower() != "no"
+                is_rcm = (row.get("is_rcm") or "").strip() == "1"
+                distributor_code = (row.get("distributor_code") or "").strip()
 
                 if not party_gstin or not invoice_date_str:
                     errors.append(f"Row {row_num}: Missing GSTIN or Invoice Date")
@@ -1092,23 +1000,97 @@ def import_invoices():
                     )
                     continue
 
-                invoice = Invoice(
-                    reference_serial_no=reference_serial_no,
-                    invoice_date=invoice_date,
-                    party_id=party.id,
-                    tax_type=tax_type,
-                    place_of_supply=place_of_supply,
-                    sac_hsn_code=sac_hsn_code,
-                    reverse_charge=reverse_charge,
-                    is_rcm=is_rcm,
-                    show_arn=show_arn,
-                )
-                db.session.add(invoice)
-                db.session.flush()
+                if is_rcm and reverse_charge <= 0:
+                    errors.append(
+                        f"Row {row_num}: Reverse Charge amount is required when RCM is enabled"
+                    )
+                    continue
 
-                cgst_amt = taxable_value * cgst_rate / 100 if tax_type == "INTRA" else 0
-                sgst_amt = taxable_value * sgst_rate / 100 if tax_type == "INTRA" else 0
-                igst_amt = taxable_value * igst_rate / 100 if tax_type == "INTER" else 0
+                invoice = None
+                if invoice_no:
+                    invoice = Invoice.query.filter_by(invoice_no=invoice_no).first()
+                elif reference_serial_no:
+                    invoice = Invoice.query.filter_by(
+                        reference_serial_no=reference_serial_no
+                    ).first()
+
+                if invoice:
+                    if invoice.locked:
+                        errors.append(
+                            f"Row {row_num}: Invoice {invoice.invoice_no or invoice.id} is locked and cannot be updated"
+                        )
+                        continue
+
+                    invoice.invoice_no = invoice_no or invoice.invoice_no
+                    invoice.reference_serial_no = (
+                        reference_serial_no or invoice.reference_serial_no
+                    )
+                    invoice.invoice_date = invoice_date
+                    invoice.party_id = party.id
+                    invoice.tax_type = tax_type
+                    invoice.place_of_supply = place_of_supply
+                    invoice.sac_hsn_code = sac_hsn_code
+                    invoice.reverse_charge = reverse_charge
+                    invoice.is_rcm = is_rcm
+                    invoice.distributor_code = distributor_code
+
+                    # Update local copy
+                    invoice.party_name = party.name
+                    invoice.party_address = party.address
+                    invoice.party_gstin = party.gstin
+                    invoice.party_pan = party.pan
+                    invoice.party_state = party.state
+                    invoice.party_state_code = party.state_code
+                    updated += 1
+                else:
+                    invoice = Invoice(
+                        invoice_no=invoice_no or None,
+                        reference_serial_no=reference_serial_no,
+                        invoice_date=invoice_date,
+                        party_id=party.id,
+                        tax_type=tax_type,
+                        place_of_supply=place_of_supply,
+                        sac_hsn_code=sac_hsn_code,
+                        reverse_charge=reverse_charge,
+                        is_rcm=is_rcm,
+                        distributor_code=distributor_code,
+                    )
+                    # Local copy
+                    invoice.party_name = party.name
+                    invoice.party_address = party.address
+                    invoice.party_gstin = party.gstin
+                    invoice.party_pan = party.pan
+                    invoice.party_state = party.state
+                    invoice.party_state_code = party.state_code
+                    db.session.add(invoice)
+                    db.session.flush()
+                    imported += 1
+
+                if invoice:
+                    InvoiceItem.query.filter_by(invoice_id=invoice.id).delete()
+
+                is_valid, error_msg = validate_tax_rates(
+                    tax_type, is_rcm, cgst_rate, sgst_rate, igst_rate
+                )
+                if not is_valid:
+                    errors.append(
+                        f"Row {row_num}: Invalid tax configuration - {error_msg}"
+                    )
+                    continue
+
+                cgst_amt = 0
+                sgst_amt = 0
+                igst_amt = 0
+                if not is_rcm:
+                    cgst_amt = (
+                        taxable_value * cgst_rate / 100 if tax_type == "INTRA" else 0
+                    )
+                    sgst_amt = (
+                        taxable_value * sgst_rate / 100 if tax_type == "INTRA" else 0
+                    )
+                    igst_amt = (
+                        taxable_value * igst_rate / 100 if tax_type == "INTER" else 0
+                    )
 
                 item = InvoiceItem(
                     invoice_id=invoice.id,
@@ -1122,22 +1104,152 @@ def import_invoices():
                     igst_amt=igst_amt,
                 )
                 db.session.add(item)
-                imported += 1
 
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
 
-        if imported > 0:
+        if imported > 0 or updated > 0:
             db.session.commit()
-            flash(f"Successfully imported {imported} invoices", "success")
+            flash(
+                f"Successfully imported {imported} new and updated {updated} existing invoices",
+                "success",
+            )
 
         if errors:
+            flash(
+                f"Failed to import {len(errors)} rows. See below for first 10 errors:",
+                "warning",
+            )
             for error in errors[:10]:
-                flash(error, "warning")
+                flash(error, "info")
 
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("manage_invoices"))
 
     return render_template("import_invoices.html")
+
+
+@app.route("/invoice/sync-party/<int:invoice_id>")
+def sync_party(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    if invoice.locked:
+        return jsonify(
+            {"success": False, "message": "Locked invoices cannot be synced"}
+        ), 403
+    party = Party.query.get(invoice.party_id)
+    if not party:
+        return jsonify({"success": False, "message": "Linked party not found"}), 404
+    invoice.party_name = party.name
+    invoice.party_address = party.address
+    invoice.party_gstin = party.gstin
+    invoice.party_pan = party.pan
+    invoice.party_state = party.state
+    invoice.party_state_code = party.state_code
+    db.session.commit()
+    return jsonify(
+        {
+            "success": True,
+            "data": {
+                "name": invoice.party_name,
+                "address": invoice.party_address,
+                "gstin": invoice.party_gstin,
+                "pan": invoice.party_pan,
+                "state": invoice.party_state,
+                "state_code": invoice.party_state_code,
+            },
+        }
+    )
+
+
+@app.route("/invoice/batch-sync", methods=["POST"])
+def batch_sync():
+    ids_raw = request.form.get("invoice_ids", "")
+    invoice_ids = ids_raw.split(",") if ids_raw else []
+    if not invoice_ids or invoice_ids == [""]:
+        flash("No invoices selected", "warning")
+        return redirect(url_for("manage_invoices"))
+    synced_count, locked_count = 0, 0
+    for inv_id in invoice_ids:
+        inv = Invoice.query.get(inv_id)
+        if inv:
+            if inv.locked:
+                locked_count += 1
+                continue
+            party = Party.query.get(inv.party_id)
+            if party:
+                inv.party_name = party.name
+                inv.party_address = party.address
+                inv.party_gstin = party.gstin
+                inv.party_pan = party.pan
+                inv.party_state = party.state
+                inv.party_state_code = party.state_code
+                synced_count += 1
+    db.session.commit()
+    if synced_count > 0:
+        flash(
+            f"Successfully synced party details for {synced_count} invoices", "success"
+        )
+    if locked_count > 0:
+        flash(f"Skipped {locked_count} locked invoices", "info")
+    return redirect(url_for("manage_invoices"))
+
+
+@app.route("/invoice/batch-lock", methods=["POST"])
+def batch_lock():
+    ids_raw = request.form.get("invoice_ids", "")
+    invoice_ids = ids_raw.split(",") if ids_raw else []
+    if not invoice_ids or invoice_ids == [""]:
+        flash("No invoices selected", "warning")
+        return redirect(url_for("manage_invoices"))
+    locked_count = 0
+    for inv_id in invoice_ids:
+        inv = Invoice.query.get(inv_id)
+        if inv:
+            inv.locked = True
+            locked_count += 1
+    db.session.commit()
+    if locked_count > 0:
+        flash(f"Successfully locked {locked_count} invoices", "success")
+    return redirect(url_for("manage_invoices"))
+
+
+@app.route("/invoice/batch-unlock", methods=["POST"])
+def batch_unlock():
+    ids_raw = request.form.get("invoice_ids", "")
+    invoice_ids = ids_raw.split(",") if ids_raw else []
+    if not invoice_ids or invoice_ids == [""]:
+        flash("No invoices selected", "warning")
+        return redirect(url_for("manage_invoices"))
+    unlocked_count = 0
+    for inv_id in invoice_ids:
+        inv = Invoice.query.get(inv_id)
+        if inv:
+            inv.locked = False
+            unlocked_count += 1
+    db.session.commit()
+    if unlocked_count > 0:
+        flash(f"Successfully unlocked {unlocked_count} invoices", "success")
+    return redirect(url_for("manage_invoices"))
+
+
+@app.route("/invoice/batch-delete", methods=["POST"])
+def batch_delete():
+    ids_raw = request.form.get("invoice_ids", "")
+    invoice_ids = ids_raw.split(",") if ids_raw else []
+    if not invoice_ids or invoice_ids == [""]:
+        flash("No invoices selected", "warning")
+        return redirect(url_for("manage_invoices"))
+    deleted_count = 0
+    for inv_id in invoice_ids:
+        inv = Invoice.query.get(inv_id)
+        if inv and not inv.locked:
+            db.session.delete(inv)
+            deleted_count += 1
+    db.session.commit()
+    if deleted_count > 0:
+        flash(f"Successfully deleted {deleted_count} invoices", "success")
+    else:
+        flash("No invoices deleted (some may be locked)", "warning")
+    return redirect(url_for("manage_invoices"))
 
 
 @app.route("/invoice/edit/<int:invoice_id>", methods=["GET", "POST"])
@@ -1183,7 +1295,19 @@ def edit_invoice(invoice_id):
         invoice.sac_hsn_code = request.form.get("sac_hsn_code")
         invoice.reverse_charge = float(request.form.get("reverse_charge") or 0)
         invoice.is_rcm = request.form.get("is_rcm") == "on"
-        invoice.show_arn = request.form.get("show_arn") == "on"
+        invoice.distributor_code = request.form.get("distributor_code", "").strip()
+
+        # Local copy overrides
+        invoice.party_name = request.form.get("party_name", "").strip()
+        invoice.party_address = request.form.get("party_address", "").strip()
+        invoice.party_gstin = request.form.get("party_gstin", "").strip().upper()
+        invoice.party_pan = request.form.get("party_pan", "").strip().upper()
+        invoice.party_state = request.form.get("party_state", "").strip()
+        invoice.party_state_code = request.form.get("party_state_code", "").strip()
+
+        if invoice.is_rcm and invoice.reverse_charge <= 0:
+            flash("Reverse Charge amount is required when RCM is enabled.", "danger")
+            return redirect(url_for("edit_invoice", invoice_id=invoice_id))
 
         if invoice.invoice_no and not invoice.total_in_words:
             invoice.total_in_words = number_to_words(invoice.calculate_gst()["total"])
@@ -1198,6 +1322,7 @@ def edit_invoice(invoice_id):
         items_igst_rate = request.form.getlist("item_igst_rate[]")
 
         tax_type = request.form.get("tax_type")
+        is_rcm = request.form.get("is_rcm") == "on"
 
         for i in range(len(items_desc)):
             if items_desc[i].strip():
@@ -1205,6 +1330,13 @@ def edit_invoice(invoice_id):
                 cgst_rate = float(items_cgst_rate[i]) if i < len(items_cgst_rate) else 0
                 sgst_rate = float(items_sgst_rate[i]) if i < len(items_sgst_rate) else 0
                 igst_rate = float(items_igst_rate[i]) if i < len(items_igst_rate) else 0
+
+                is_valid, error_msg = validate_tax_rates(
+                    tax_type, is_rcm, cgst_rate, sgst_rate, igst_rate
+                )
+                if not is_valid:
+                    flash(f"Item '{items_desc[i][:30]}': {error_msg}", "danger")
+                    return redirect(url_for("edit_invoice", invoice_id=invoice_id))
 
                 cgst_amt = taxable * cgst_rate / 100 if tax_type == "INTRA" else 0
                 sgst_amt = taxable * sgst_rate / 100 if tax_type == "INTRA" else 0
@@ -1225,14 +1357,19 @@ def edit_invoice(invoice_id):
 
         db.session.commit()
         flash("Invoice updated successfully", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("manage_invoices"))
 
     return render_template("edit_invoice.html", invoice=invoice, parties=parties)
 
 
 @app.template_filter("currency")
 def currency_filter(value):
-    return f"{value:,.2f}"
+    if value is None or value == "":
+        return "0.00"
+    try:
+        return f"{float(value):,.2f}"
+    except (ValueError, TypeError):
+        return "0.00"
 
 
 @app.context_processor

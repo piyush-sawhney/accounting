@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Party - KNAPS Invoicing{% endblock %}
+
+{% block content %}
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3 text-dark"><i class="bi bi-pencil me-2"></i>Edit Party</h2>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                <h5 class="mb-0 text-primary">Party Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Party Name *</label>
+                            <input type="text" name="name" class="form-control" value="{{ party.name }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">GSTIN *</label>
+                            <input type="text" name="gstin" class="form-control" value="{{ party.gstin }}" required placeholder="e.g., 27AABCU9603R1ZM">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">PAN (Optional)</label>
+                            <input type="text" name="pan" class="form-control" value="{{ party.pan or '' }}" placeholder="e.g., AACTA5925A">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">AMC Code (Optional)</label>
+                            <input type="text" name="amc_code" class="form-control" value="{{ party.amc_code or '' }}" placeholder="e.g., AXISMF001">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Email</label>
+                            <input type="email" name="email" class="form-control" value="{{ party.email or '' }}" placeholder="email@example.com">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Phone</label>
+                            <input type="text" name="phone" class="form-control" value="{{ party.phone or '' }}" placeholder="+91 ...">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Address</label>
+                        <textarea name="address" class="form-control" rows="3">{{ party.address or '' }}</textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">State</label>
+                            <input type="text" name="state" class="form-control" value="{{ party.state or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">State Code</label>
+                            <input type="text" name="state_code" class="form-control" value="{{ party.state_code or '' }}" placeholder="e.g., 27">
+                        </div>
+                    </div>
+                    
+                    <div class="text-end mt-4">
+                        <a href="{{ url_for('parties') }}" class="btn btn-outline-secondary btn-lg me-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save me-1"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

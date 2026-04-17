@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Import Parties - KNAPS Invoicing{% endblock %}
+
+{% block content %}
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3 text-dark"><i class="bi bi-upload me-2"></i>Import Parties</h2>
+            <a href="{{ url_for('parties') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Parties
+            </a>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                <h5 class="mb-0 text-primary">CSV Requirements</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">Your CSV file should have the following columns:</p>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle text-muted small">
+                        <thead>
+                            <tr class="table-light">
+                                <th>Column</th>
+                                <th>Required</th>
+                                <th>Description</th>
+                                <th>Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><code>name</code></td><td><span class="badge bg-danger">Yes</span></td><td>Party name</td><td>Axis Mutual Fund</td></tr>
+                            <tr><td><code>gstin</code></td><td><span class="badge bg-danger">Yes</span></td><td>GSTIN number</td><td>27AACTA5925A1Z5</td></tr>
+                            <tr><td><code>pan</code></td><td><span class="badge bg-secondary">No</span></td><td>PAN</td><td>AACTA5925A</td></tr>
+                            <tr><td><code>amc_code</code></td><td><span class="badge bg-secondary">No</span></td><td>AMC Code</td><td>AXISMF001</td></tr>
+                            <tr><td><code>address</code></td><td><span class="badge bg-secondary">No</span></td><td>Address</td><td>Mumbai, Maharashtra</td></tr>
+                            <tr><td><code>state</code></td><td><span class="badge bg-secondary">No</span></td><td>State name</td><td>Maharashtra</td></tr>
+                            <tr><td><code>state_code</code></td><td><span class="badge bg-secondary">No</span></td><td>State code</td><td>27</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-4">
+                    <h6 class="text-primary">Sample CSV Structure</h6>
+                    <pre class="bg-light p-3 rounded small text-muted">name,gstin,pan,amc_code,address,state,state_code
+Axis Mutual Fund,27AACTA5925A1Z5,AACTA5925A,AXISMF001,"Mumbai, Maharashtra",Maharashtra,27</pre>
+                </div>
+                
+                <hr class="my-4">
+                
+                <form method="POST" enctype="multipart/form-data" class="row g-3 align-items-end">
+                    <div class="col-md-8">
+                        <label class="form-label text-muted small">Select CSV File</label>
+                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-upload me-1"></i> Import Parties
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

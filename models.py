@@ -76,7 +76,16 @@ class Invoice(db.Model):
     total_in_words = db.Column(db.String(500), nullable=True)
     reverse_charge = db.Column(db.Float, nullable=True, default=0)
     is_rcm = db.Column(db.Boolean, nullable=True, default=False)
-    show_arn = db.Column(db.Boolean, nullable=True, default=True)
+    distributor_code = db.Column(db.String(100), nullable=True)
+
+    # Local Party Copy for immutability
+    party_name = db.Column(db.String(200), nullable=True)
+    party_address = db.Column(db.Text, nullable=True)
+    party_gstin = db.Column(db.String(20), nullable=True)
+    party_pan = db.Column(db.String(20), nullable=True)
+    party_state = db.Column(db.String(50), nullable=True)
+    party_state_code = db.Column(db.String(5), nullable=True)
+
     locked = db.Column(db.Boolean, nullable=True, default=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -93,6 +102,23 @@ class Invoice(db.Model):
         total_cgst = Decimal("0")
         total_sgst = Decimal("0")
         total_igst = Decimal("0")
+
+        # If RCM is active, all standard taxes are 0
+        if self.is_rcm:
+            for item in self.items:
+                subtotal += Decimal(str(item.taxable_value))
+
+            return {
+                "subtotal": float(
+                    subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ),
+                "cgst": 0.0,
+                "sgst": 0.0,
+                "igst": 0.0,
+                "total": float(
+                    subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ),
+            }
 
         for item in self.items:
             item_total = Decimal(str(item.taxable_value))
@@ -138,7 +164,13 @@ class Invoice(db.Model):
             "total_in_words": self.total_in_words,
             "reverse_charge": self.reverse_charge,
             "is_rcm": self.is_rcm,
-            "show_arn": self.show_arn,
+            "distributor_code": self.distributor_code,
+            "party_name": self.party_name,
+            "party_address": self.party_address,
+            "party_gstin": self.party_gstin,
+            "party_pan": self.party_pan,
+            "party_state": self.party_state,
+            "party_state_code": self.party_state_code,
         }
 
 

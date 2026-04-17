@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice Management - KNAPS Invoicing{% endblock %}
+
+{% block content %}
+<style>
+    .invoice-table-container {
+        max-height: 600px;
+        overflow-y: auto;
+        position: relative;
+    }
+    .invoice-table-container table thead th {
+        position: sticky;
+        z-index: 10;
+        background-color: #f8f9fa !important;
+    }
+    .invoice-table-container table thead tr:nth-child(1) th {
+        top: 0;
+        z-index: 11;
+    }
+    .invoice-table-container table thead tr:nth-child(2) th {
+        top: 42px;
+    }
+</style>
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('manage_invoices') }}" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Year</label>
+                        <select name="year" class="form-select">
+                            <option value="">All Years</option>
+                            {% for y in years %}
+                            <option value="{{ y }}" {% if selected_year == y|string %}selected{% endif %}>{{ y }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Month</label>
+                        <select name="month" class="form-select">
+                            <option value="">All Months</option>
+                            {% for i in range(1, 13) %}
+                                {% set m = "%02d"|format(i) %}
+                                <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>{{ ['January','February','March','April','May','June','July','August','September','October','November','December'][i-1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-outline-primary me-2 flex-grow-1">Filter</button>
+                        <a href="{{ url_for('manage_invoices') }}" class="btn btn-outline-secondary flex-grow-1">Reset</a>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <!-- Placeholder for alignment -->
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="row mb-3 g-2 align-items-center">
+            <div class="col-auto">
+                <form action="{{ url_for('batch_sync') }}" method="POST" onsubmit="return confirm('Are you sure you want to sync party details for selected invoices? This will overwrite any manual overrides on unlocked invoices.');">
+                    <input type="hidden" name="invoice_ids" id="sync_ids">
+                    <button type="submit" class="btn btn-sm btn-outline-info">
+                        <i class="bi bi-arrow-repeat me-1"></i> Sync Parties
+                    </button>
+                </form>
+            </div>
+            <div class="col-auto">
+                <form action="{{ url_for('batch_lock') }}" method="POST" id="lockForm">
+                    <input type="hidden" name="invoice_ids" id="lock_ids">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-lock-fill me-1"></i> Lock Selected
+                    </button>
+                </form>
+            </div>
+            <div class="col-auto">
+                <form action="{{ url_for('batch_unlock') }}" method="POST" id="unlockForm">
+                    <input type="hidden" name="invoice_ids" id="unlock_ids">
+                    <button type="submit" class="btn btn-sm btn-outline-warning">
+                        <i class="bi bi-unlock-fill me-1"></i> Unlock Selected
+                    </button>
+                </form>
+            </div>
+            <div class="col-auto">
+                <form action="{{ url_for('batch_delete') }}" method="POST" id="deleteForm" onsubmit="return confirm('Are you sure you want to delete selected invoices?');">
+                    <input type="hidden" name="invoice_ids" id="delete_ids">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash-fill me-1"></i> Delete Selected
+                    </button>
+                </form>
+            </div>
+            <div class="col-auto">
+                {% if pending_count > 0 %}
+                <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#generateNumbersModal">
+                    <i class="bi bi-magic me-1"></i> Auto-Generate Numbers
+                    <span class="badge bg-light text-dark ms-1">{{ pending_count }}</span>
+                </button>
+                {% else %}
+                <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                    <i class="bi bi-magic me-1"></i> Auto-Generate Numbers
+                </button>
+                {% endif %}
+            </div>
+            <div class="col-auto ms-auto d-flex align-items-center gap-3">
+                <span id="selectedCount" class="badge bg-dark">0 Selected</span>
+                <form id="batchExportForm" action="{{ url_for('batch_export') }}" method="POST">
+                    <input type="hidden" name="invoice_ids" id="export_ids">
+                    <button type="submit" class="btn btn-sm btn-success">
+                        <i class="bi bi-download me-1"></i> Export Selected
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-white border-bottom-0 pt-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-dark">Invoices</h5>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('create_invoice') }}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus-circle me-1"></i> New Invoice
+                        </a>
+                        <a href="{{ url_for('import_invoices') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-upload me-1"></i> Import CSV
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="invoice-table-container">
+                    <table class="table table-hover align-middle mb-0" id="invoicesTable">
+                        <thead>
+                            <tr class="table-light">
+                                <th class="text-center" style="width: 50px;"><input type="checkbox" id="selectAll"></th>
+                                <th>
+                                    <a href="{{ url_for('manage_invoices', sort_by='invoice_no', sort_dir='asc' if sort_by != 'invoice_no' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                        Invoice No. {% if sort_by == 'invoice_no' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                    </a>
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('manage_invoices', sort_by='date', sort_dir='asc' if sort_by != 'date' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                        Date {% if sort_by == 'date' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                    </a>
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('manage_invoices', sort_by='party', sort_dir='asc' if sort_by != 'party' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                        Party Name {% if sort_by == 'party' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                    </a>
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th>
+                                    GSTIN
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th>
+                                    Taxable Amount
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th>
+                                    Tax Rate
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('manage_invoices', sort_by='tax_type', sort_dir='asc' if sort_by != 'tax_type' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                        Tax Type {% if sort_by == 'tax_type' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                    </a>
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th class="text-end">
+                                    Total Value
+                                    <input type="text" class="form-control form-control-sm mt-1 col-filter" placeholder="Filter...">
+                                </th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invoice in invoices %}
+                            <tr>
+                                 <td class="text-center"><input type="checkbox" name="invoice_ids" value="{{ invoice.id }}"></td>
+                                <td>
+                                    {% if invoice.invoice_no %}
+                                        <span class="badge bg-light text-dark border">{{ invoice.invoice_no }}</span>
+                                        {% if invoice.locked %}
+                                        <i class="bi bi-lock-fill text-muted ms-1" title="Locked"></i>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ invoice.invoice_date.strftime('%d-%m-%Y') }}</td>
+                                <td>{{ invoice.party.name }}</td>
+                                <td><code>{{ invoice.party.gstin }}</code></td>
+                                <td class="text-end">₹{{ "%.2f"|format(invoice.calculate_gst().subtotal) }}</td>
+                                <td class="text-center">
+                                    {% set gst = invoice.calculate_gst() %}
+                                    {% set total_tax = gst.cgst + gst.sgst + gst.igst %}
+                                    {% if gst.subtotal > 0 %}
+                                        {{ "%.1f"|format((total_tax / gst.subtotal * 100)) }}%
+                                    {% else %}
+                                        0%
+                                    {% endif %}
+                                </td>
+                                 <td>
+                                     {% if invoice.is_rcm %}
+                                         <span class="badge bg-danger text-white">RCM</span>
+                                     {% elif invoice.tax_type == 'INTRA' %}
+                                         <span class="badge bg-info text-white">Intra</span>
+                                     {% else %}
+                                         <span class="badge bg-secondary text-white">Inter</span>
+                                     {% endif %}
+                                 </td>
+                                <td class="text-end fw-bold">₹{{ "%.2f"|format(gst.total) }}</td>
+                                <td class="text-center">
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('view_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-info" title="View"><i class="bi bi-eye"></i></a>
+                                        {% if not invoice.locked %}
+                                        <a href="{{ url_for('edit_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-warning" title="Edit"><i class="bi bi-pencil"></i></a>
+                                        {% endif %}
+                                        {% if invoice.invoice_no %}
+                                        <a href="{{ url_for('generate_pdf', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-danger" title="PDF"><i class="bi bi-file-pdf"></i></a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="11" class="text-center py-4 text-muted">No invoices found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('selectAll').addEventListener('change', function() {
+        document.querySelectorAll('input[name="invoice_ids"]:not(:disabled)').forEach(cb => cb.checked = this.checked);
+        updateBatchIds();
+    });
+
+    function updateBatchIds() {
+        const selectedIds = Array.from(document.querySelectorAll('input[name="invoice_ids"]:checked')).map(cb => cb.value);
+        document.getElementById('lock_ids').value = selectedIds.join(',');
+        document.getElementById('unlock_ids').value = selectedIds.join(',');
+        document.getElementById('delete_ids').value = selectedIds.join(',');
+        document.getElementById('export_ids').value = selectedIds.join(',');
+        document.getElementById('sync_ids').value = selectedIds.join(',');
+        
+        // Update selected count
+        document.getElementById('selectedCount').textContent = `${selectedIds.length} Selected`;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkboxes = document.querySelectorAll('input[name="invoice_ids"]');
+        checkboxes.forEach(cb => cb.addEventListener('change', updateBatchIds));
+        
+        const filters = document.querySelectorAll('.col-filter');
+        const tableRows = document.querySelectorAll('#invoicesTable tbody tr');
+        function filterTable() {
+            tableRows.forEach(row => {
+                let showRow = true;
+                filters.forEach((filter, index) => {
+                    const filterValue = filter.value.toLowerCase();
+                    const cell = row.cells[index + 1];
+                    if (cell) {
+                        const cellValue = cell.textContent.toLowerCase();
+                        if (filterValue && !cellValue.includes(filterValue)) {
+                            showRow = false;
+                        }
+                    }
+                });
+                row.style.display = showRow ? '' : 'none';
+            });
+        }
+        filters.forEach(filter => {
+            filter.addEventListener('input', filterTable);
+        });
+
+        // Initial count
+        updateBatchIds();
+    });
+</script>
+
+<div class="modal fade" id="generateNumbersModal" tabindex="-1" aria-labelledby="generateNumbersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="generateNumbersModalLabel">
+                    <i class="bi bi-magic text-success me-2"></i>Auto-Generate Invoice Numbers
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to generate invoice numbers for <strong class="text-success">{{ pending_count }} pending invoice{{ 's' if pending_count != 1 else '' }}</strong>.</p>
+                <p class="text-muted small">This will assign sequential invoice numbers based on the current fiscal year settings.</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>This action cannot be undone. Each invoice will be locked after numbering.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('generate_numbers') }}" method="POST">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-lg me-1"></i> Generate {{ pending_count }} Number{{ 's' if pending_count != 1 else '' }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

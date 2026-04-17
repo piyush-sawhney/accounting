@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Create Invoice - KNAPS Invoicing{% endblock %}
+
+{% block content %}
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3 text-dark"><i class="bi bi-plus-circle me-2"></i>Create Invoice</h2>
+            <a href="{{ url_for('manage_invoices') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Invoices
+            </a>
+        </div>
+        
+        <form method="POST" id="invoiceForm">
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                    <h5 class="mb-0 text-primary">Invoice Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Reference Serial Number</label>
+                            <input type="text" name="reference_serial_no" class="form-control" placeholder="From RTA/Report">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Invoice Date *</label>
+                            <input type="date" name="invoice_date" class="form-control" required value="{{ current_date }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Select Party *</label>
+                            <select name="party_id" id="partySelect" class="form-select" required>
+                                <option value="">-- Select Party --</option>
+                                {% for party in parties %}
+                                <option value="{{ party.id }}">{{ party.name }} ({{ party.gstin }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Tax Type *</label>
+                            <select name="tax_type" class="form-select" required id="taxType">
+                                <option value="INTRA">Intra-state (CGST + SGST)</option>
+                                <option value="INTER" selected>Inter-state (IGST)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Place of Supply</label>
+                            <input type="text" name="place_of_supply" class="form-control" placeholder="e.g., Mumbai">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">SAC/HSN Code</label>
+                            <input type="text" name="sac_hsn_code" class="form-control" placeholder="e.g., 9971">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Reverse Charge</label>
+                            <input type="number" name="reverse_charge" class="form-control" value="0" min="0" step="0.01">
+                        </div>
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" name="is_rcm" class="form-check-input" id="isRcm">
+                                <label class="form-check-label" for="isRcm">RCM (Reverse Charge Mechanism)</label>
+                            </div>
+                        </div>
+                         <div class="col-md-4 mb-3">
+                             <label class="form-label text-muted small">Distributor Code</label>
+                             <input type="text" name="distributor_code" class="form-control" placeholder="Enter code">
+                         </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-primary">Invoice Items</h5>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="addItemBtn">
+                        <i class="bi bi-plus me-1"></i> Add Item
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="itemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Description *</th>
+                                    <th>Taxable Value (₹)</th>
+                                    <th>IGST %</th>
+                                    <th>CGST %</th>
+                                    <th>SGST %</th>
+                                    <th>Total</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemsBody">
+                                <tr class="item-row">
+                                    <td><input type="text" name="item_description[]" class="form-control" required placeholder="Service description"></td>
+                                    <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="0" min="0" step="0.01"></td>
+                                    <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="0" min="0" step="0.1"></td>
+                                    <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="0" min="0" step="0.1"></td>
+                                    <td><input type="number" name="item_sgst_rate[]" class="form-control sgst-input" value="0" min="0" step="0.1"></td>
+                                    <td class="text-end item-total text-muted">₹0.00</td>
+                                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-item"><i class="bi bi-trash"></i></button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-end mb-4">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save me-1"></i> Create Invoice
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize Tom Select for Party Dropdown
+    new TomSelect("#partySelect", {
+        create: false,
+        sortField: {
+            string: 'text',
+            direction: 'asc'
+        }
+    });
+
+    function applyTaxTypeDefaults() {
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        const isRcm = document.getElementById('isRcm').checked;
+        
+        if (isRcm) {
+            document.querySelectorAll('.igst-input, .cgst-input, .sgst-input').forEach(input => {
+                input.value = 0;
+                input.disabled = true;
+            });
+        } else {
+            if (isInter) {
+                document.querySelectorAll('.igst-input').forEach(input => { input.value = 18; input.disabled = false; });
+                document.querySelectorAll('.cgst-input').forEach(input => { input.value = 0; input.disabled = false; });
+                document.querySelectorAll('.sgst-input').forEach(input => { input.value = 0; input.disabled = false; });
+            } else {
+                document.querySelectorAll('.igst-input').forEach(input => { input.value = 0; input.disabled = false; });
+                document.querySelectorAll('.cgst-input').forEach(input => { input.value = 9; input.disabled = false; });
+                document.querySelectorAll('.sgst-input').forEach(input => { input.value = 9; input.disabled = false; });
+            }
+        }
+    }
+    
+    document.getElementById('taxType').addEventListener('change', function() {
+        applyTaxTypeDefaults();
+        calculateAllRows();
+    });
+
+    document.getElementById('isRcm').addEventListener('change', function() {
+        applyTaxTypeDefaults();
+        calculateAllRows();
+    });
+    
+    applyTaxTypeDefaults();
+    
+    document.getElementById('addItemBtn').addEventListener('click', function() {
+        const tbody = document.getElementById('itemsBody');
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        const newRow = document.createElement('tr');
+        newRow.className = 'item-row';
+        const igstVal = isInter ? 18 : 0;
+        const cgstVal = isInter ? 0 : 9;
+        const sgstVal = isInter ? 0 : 9;
+        newRow.innerHTML = `
+            <td><input type="text" name="item_description[]" class="form-control" required placeholder="Service description"></td>
+            <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="0" min="0" step="0.01"></td>
+            <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="${igstVal}" min="0" step="0.1"></td>
+            <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="${cgstVal}" min="0" step="0.1"></td>
+            <td><input type="number" name="item_sgst_rate[]" class="form-control sgst-input" value="${sgstVal}" min="0" step="0.1"></td>
+            <td class="text-end item-total text-muted">₹0.00</td>
+            <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-item"><i class="bi bi-trash"></i></button></td>
+        `;
+        tbody.appendChild(newRow);
+        attachRowEvents(newRow);
+    });
+    
+    function calculateAllRows() {
+        document.querySelectorAll('.item-row').forEach(attachRowEvents);
+    }
+    
+    function attachRowEvents(row) {
+        const taxableInput = row.querySelector('.taxable-input');
+        const igstInput = row.querySelector('.igst-input');
+        const cgstInput = row.querySelector('.cgst-input');
+        const sgstInput = row.querySelector('.sgst-input');
+        const totalCell = row.querySelector('.item-total');
+        const removeBtn = row.querySelector('.remove-item');
+        
+        function calculateRow() {
+            const taxable = parseFloat(taxableInput.value) || 0;
+            const igstRate = parseFloat(igstInput.value) || 0;
+            const cgstRate = parseFloat(cgstInput.value) || 0;
+            const sgstRate = parseFloat(sgstInput.value) || 0;
+            
+            const igstAmt = taxable * igstRate / 100;
+            const cgstAmt = taxable * cgstRate / 100;
+            const sgstAmt = taxable * sgstRate / 100;
+            
+            const total = taxable + igstAmt + cgstAmt + sgstAmt;
+            totalCell.textContent = '₹' + total.toFixed(2);
+        }
+        
+        taxableInput.addEventListener('input', calculateRow);
+        igstInput.addEventListener('input', calculateRow);
+        cgstInput.addEventListener('input', calculateRow);
+        sgstInput.addEventListener('input', calculateRow);
+        
+        removeBtn.addEventListener('click', function() {
+            row.remove();
+        });
+        
+        calculateRow();
+    }
+    
+    document.querySelectorAll('.item-row').forEach(attachRowEvents);
+</script>
+{% endblock %}

@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Invoice - KNAPS Invoicing{% endblock %}
+
+{% block content %}
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3 text-dark"><i class="bi bi-pencil me-2"></i>Edit Invoice</h2>
+            {% if invoice.locked %}
+            <span class="badge bg-warning"><i class="bi bi-lock-fill me-1"></i> Locked</span>
+            {% endif %}
+        </div>
+        
+        <form method="POST">
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                    <h5 class="mb-0 text-primary"><i class="bi bi-receipt me-2"></i>Invoice Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">Invoice Number</label>
+                            <input type="text" name="invoice_no" class="form-control" value="{{ invoice.invoice_no or '' }}" placeholder="26-27/001">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">Reference Serial No.</label>
+                            <input type="text" name="reference_serial_no" class="form-control" value="{{ invoice.reference_serial_no or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">Invoice Date *</label>
+                            <input type="date" name="invoice_date" class="form-control" required value="{{ invoice.invoice_date.strftime('%Y-%m-%d') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">Tax Type *</label>
+                            <select name="tax_type" class="form-select" required id="taxType">
+                                <option value="INTRA" {% if invoice.tax_type == 'INTRA' %}selected{% endif %}>Intra (CGST + SGST)</option>
+                                <option value="INTER" {% if invoice.tax_type == 'INTER' %}selected{% endif %}>Inter (IGST)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">Place of Supply</label>
+                            <input type="text" name="place_of_supply" class="form-control" value="{{ invoice.place_of_supply or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">SAC/HSN Code</label>
+                            <input type="text" name="sac_hsn_code" class="form-control" value="{{ invoice.sac_hsn_code or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">Distributor Code</label>
+                            <input type="text" name="distributor_code" class="form-control" value="{{ invoice.distributor_code or '' }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 text-primary"><i class="bi bi-person me-2"></i>Party Details</h5>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="syncPartyBtn" {% if invoice.locked %}disabled{% endif %}>
+                            <i class="bi bi-arrow-repeat me-1"></i> Sync from Master
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small">Select Party *</label>
+                            <select name="party_id" id="partySelect" class="form-select" required>
+                                <option value="">-- Select Party --</option>
+                                {% for party in parties %}
+                                <option value="{{ party.id }}" {% if party.id == invoice.party_id %}selected{% endif %}>{{ party.name }} ({{ party.gstin }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small">Party Name</label>
+                            <input type="text" name="party_name" id="party_name" class="form-control" value="{{ invoice.party_name or '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small">GSTIN</label>
+                            <input type="text" name="party_gstin" id="party_gstin" class="form-control" value="{{ invoice.party_gstin or '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small">PAN</label>
+                            <input type="text" name="party_pan" id="party_pan" class="form-control" value="{{ invoice.party_pan or '' }}">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small">Address</label>
+                            <textarea name="party_address" id="party_address" class="form-control" rows="2">{{ invoice.party_address or '' }}</textarea>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">State</label>
+                            <input type="text" name="party_state" id="party_state" class="form-control" value="{{ invoice.party_state or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">State Code</label>
+                            <input type="text" name="party_state_code" id="party_state_code" class="form-control" value="{{ invoice.party_state_code or '' }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                    <h5 class="mb-0 text-primary"><i class="bi bi-arrow-left-circle me-2"></i>Reverse Charge / RCM</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small">Reverse Charge Amount (₹)</label>
+                            <input type="number" name="reverse_charge" class="form-control" value="{{ invoice.reverse_charge or 0 }}" min="0" step="0.01">
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
+                                <input type="checkbox" name="is_rcm" class="form-check-input" id="isRcm" {% if invoice.is_rcm %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold" for="isRcm">Enable RCM (Reverse Charge Mechanism)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-primary"><i class="bi bi-list-ul me-2"></i>Invoice Items</h5>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="addItemBtn">
+                        <i class="bi bi-plus me-1"></i> Add Item
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="itemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 35%;">Description *</th>
+                                    <th style="width: 15%;">Taxable Value (₹)</th>
+                                    <th style="width: 12%;"><span class="tax-col-intra">IGST %</span></th>
+                                    <th style="width: 12%;"><span class="tax-col-inter">CGST %</span></th>
+                                    <th style="width: 12%;"><span class="tax-col-inter">SGST %</span></th>
+                                    <th class="text-end">Total</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemsBody">
+                                {% for item in invoice.items %}
+                                <tr class="item-row">
+                                    <td><input type="text" name="item_description[]" class="form-control" required value="{{ item.description }}"></td>
+                                    <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="{{ item.taxable_value }}" min="0" step="0.01"></td>
+                                    <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="{{ item.igst_rate }}" min="0" step="0.1"></td>
+                                    <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="{{ item.cgst_rate }}" min="0" step="0.1"></td>
+                                    <td><input type="number" name="item_sgst_rate[]" class="form-control sgst-input" value="{{ item.sgst_rate }}" min="0" step="0.1"></td>
+                                    <td class="text-end item-total text-muted">₹{{ "%.2f"|format(item.taxable_value + item.cgst_amt + item.sgst_amt + item.igst_amt) }}</td>
+                                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-item"><i class="bi bi-trash"></i></button></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="5" class="text-end fw-semibold">Grand Total:</td>
+                                    <td class="text-end fw-bold" id="grandTotal">₹0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-end mb-4">
+                <a href="{{ url_for('manage_invoices') }}" class="btn btn-outline-secondary btn-lg me-2">Cancel</a>
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save me-1"></i> Update Invoice
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const partySelect = new TomSelect("#partySelect", {
+        create: false,
+        sortField: { string: 'text', direction: 'asc' },
+        onChange: async function(value) {
+            if (!value) return;
+            try {
+                const response = await fetch(`/party/api/${value}`);
+                const data = await response.json();
+                document.getElementById('party_name').value = data.name || '';
+                document.getElementById('party_gstin').value = data.gstin || '';
+                document.getElementById('party_pan').value = data.pan || '';
+                document.getElementById('party_address').value = data.address || '';
+                document.getElementById('party_state').value = data.state || '';
+                document.getElementById('party_state_code').value = data.state_code || '';
+            } catch (error) {
+                console.error("Error fetching party details:", error);
+            }
+        }
+    });
+
+    document.getElementById('syncPartyBtn').addEventListener('click', async function() {
+        const invoiceId = "{{ invoice.id }}";
+        try {
+            const response = await fetch(`/invoice/sync-party/${invoiceId}`);
+            const result = await response.json();
+            if (result.success) {
+                const data = result.data;
+                document.getElementById('party_name').value = data.name;
+                document.getElementById('party_gstin').value = data.gstin;
+                document.getElementById('party_pan').value = data.pan;
+                document.getElementById('party_address').value = data.address;
+                document.getElementById('party_state').value = data.state;
+                document.getElementById('party_state_code').value = data.state_code;
+            } else {
+                alert(result.message);
+            }
+        } catch (error) {
+            alert("An error occurred while syncing party details.");
+        }
+    });
+
+    function updateTaxColumns() {
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        const isRcm = document.getElementById('isRcm').checked;
+        const taxColsInter = document.querySelectorAll('.tax-col-inter');
+        const taxColsIntra = document.querySelectorAll('.tax-col-intra');
+        
+        if (isRcm) {
+            taxColsInter.forEach(el => { el.style.display = 'none'; });
+            taxColsIntra.forEach(el => { el.style.display = 'none'; });
+            document.querySelectorAll('.igst-input, .cgst-input, .sgst-input').forEach(input => {
+                input.value = 0;
+                input.disabled = true;
+            });
+        } else if (isInter) {
+            taxColsInter.forEach(el => { el.style.display = 'none'; });
+            taxColsIntra.forEach(el => { el.style.display = ''; });
+            document.querySelectorAll('.igst-input').forEach(input => { input.disabled = false; });
+            document.querySelectorAll('.cgst-input, .sgst-input').forEach(input => {
+                input.value = 0;
+                input.disabled = true;
+            });
+        } else {
+            taxColsInter.forEach(el => { el.style.display = ''; });
+            taxColsIntra.forEach(el => { el.style.display = 'none'; });
+            document.querySelectorAll('.cgst-input, .sgst-input').forEach(input => { input.disabled = false; });
+            document.querySelectorAll('.igst-input').forEach(input => {
+                input.value = 0;
+                input.disabled = true;
+            });
+        }
+    }
+
+    function applyTaxDefaults() {
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        const isRcm = document.getElementById('isRcm').checked;
+        
+        if (isRcm) {
+            document.querySelectorAll('.igst-input, .cgst-input, .sgst-input').forEach(input => { input.value = 0; });
+        } else if (isInter) {
+            document.querySelectorAll('.igst-input').forEach(input => { input.value = 18; });
+            document.querySelectorAll('.cgst-input, .sgst-input').forEach(input => { input.value = 0; });
+        } else {
+            document.querySelectorAll('.igst-input').forEach(input => { input.value = 0; });
+            document.querySelectorAll('.cgst-input, .sgst-input').forEach(input => { input.value = 9; });
+        }
+        updateTaxColumns();
+        calculateAllRows();
+    }
+
+    document.getElementById('taxType').addEventListener('change', function() {
+        applyTaxDefaults();
+    });
+
+    document.getElementById('isRcm').addEventListener('change', function() {
+        applyTaxDefaults();
+    });
+
+    document.getElementById('addItemBtn').addEventListener('click', function() {
+        const tbody = document.getElementById('itemsBody');
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        
+        const newRow = document.createElement('tr');
+        newRow.className = 'item-row';
+        newRow.innerHTML = `
+            <td><input type="text" name="item_description[]" class="form-control" required placeholder="Service description"></td>
+            <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="0" min="0" step="0.01"></td>
+            <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="18" min="0" step="0.1"></td>
+            <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="9" min="0" step="0.1"></td>
+            <td><input type="number" name="item_sgst_rate[]" class="form-control sgst-input" value="9" min="0" step="0.1"></td>
+            <td class="text-end item-total text-muted">₹0.00</td>
+            <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-item"><i class="bi bi-trash"></i></button></td>
+        `;
+        tbody.appendChild(newRow);
+        attachRowEvents(newRow);
+        applyTaxDefaults();
+    });
+
+    function calculateRow(row) {
+        const taxableInput = row.querySelector('.taxable-input');
+        const igstInput = row.querySelector('.igst-input');
+        const cgstInput = row.querySelector('.cgst-input');
+        const sgstInput = row.querySelector('.sgst-input');
+        const totalCell = row.querySelector('.item-total');
+        
+        const taxable = parseFloat(taxableInput.value) || 0;
+        const igstRate = parseFloat(igstInput.value) || 0;
+        const cgstRate = parseFloat(cgstInput.value) || 0;
+        const sgstRate = parseFloat(sgstInput.value) || 0;
+        
+        const igstAmt = taxable * igstRate / 100;
+        const cgstAmt = taxable * cgstRate / 100;
+        const sgstAmt = taxable * sgstRate / 100;
+        
+        const total = taxable + igstAmt + cgstAmt + sgstAmt;
+        totalCell.textContent = '₹' + total.toFixed(2);
+        return total;
+    }
+
+    function calculateAllRows() {
+        let grandTotal = 0;
+        document.querySelectorAll('.item-row').forEach(row => {
+            grandTotal += calculateRow(row);
+        });
+        document.getElementById('grandTotal').textContent = '₹' + grandTotal.toFixed(2);
+    }
+
+    function attachRowEvents(row) {
+        const taxableInput = row.querySelector('.taxable-input');
+        const igstInput = row.querySelector('.igst-input');
+        const cgstInput = row.querySelector('.cgst-input');
+        const sgstInput = row.querySelector('.sgst-input');
+        const removeBtn = row.querySelector('.remove-item');
+        
+        [taxableInput, igstInput, cgstInput, sgstInput].forEach(input => {
+            input.addEventListener('input', function() {
+                calculateRow(row);
+                calculateAllRows();
+            });
+        });
+        
+        removeBtn.addEventListener('click', function() {
+            row.remove();
+            calculateAllRows();
+        });
+    }
+
+    document.querySelectorAll('.item-row').forEach(attachRowEvents);
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        applyTaxDefaults();
+        calculateAllRows();
+    });
+</script>
+{% endblock %}
