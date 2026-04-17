@@ -2,75 +2,34 @@
 
 {% block title %}Parties - KNAPS Invoicing{% endblock %}
 
-{% block content %}
+{% block extra_css %}
 <style>
-    /* Material Design inspired overrides */
-    body {
-        background-color: #f5f5f5;
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }
-    
-    .card {
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.05);
-        border: none;
-        overflow: hidden;
-    }
-
-    .table-container {
-        max-height: calc(100vh - 220px); /* Responsive height */
+    .table-wrapper {
+        max-height: 50vh;
         overflow-y: auto;
-        scrollbar-width: thin;
     }
-
-    .custom-table thead th {
-        background-color: #ffffff;
-        color: #5f6368;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.85rem;
-        letter-spacing: 0.5px;
+    .table-wrapper thead th {
         position: sticky;
-        z-index: 10;
-        border-bottom: 2px solid #e0e0e0;
-    }
-
-    .custom-table thead tr:nth-child(1) th {
         top: 0;
-        z-index: 11;
+        background: var(--m3-scheme-surface-variant);
+        z-index: 10;
     }
-
-    .custom-table thead tr:nth-child(2) th {
-        top: 42px;
+    .table-wrapper thead tr.filter-row th {
+        top: 45px;
+        background: var(--m3-scheme-surface-variant);
     }
-
-    .custom-table tbody td {
-        font-size: 0.95rem;
-        color: #3c4043;
+    .table-wrapper .col-filter {
+        width: 100%;
+        font-size: 0.75rem;
+        padding: 4px 6px;
     }
-
-    .col-filter {
-        border: 1px solid #dadce0;
-        border-radius: 4px;
-        padding: 4px 8px;
-    }
-
-    .action-bar {
-        background: #fff;
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        margin-bottom: 1.5rem;
-    }
-    
-    .btn {
-        border-radius: 4px;
-        font-weight: 500;
-        text-transform: uppercase;
-        font-size: 0.8rem;
-        padding: 0.5rem 1rem;
+    .table-wrapper tbody tr:hover td {
+        background-color: var(--m3-scheme-primary-container);
     }
 </style>
+{% endblock %}
+
+{% block content %}
 <div class="col-md-10 py-4">
     <div class="container-fluid">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -84,64 +43,65 @@
             {% endif %}
         {% endwith %}
         
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="h3 text-dark"><i class="bi bi-people me-2"></i>Parties</h2>
-            <div class="d-flex gap-2">
+        <div class="row mb-3 g-2 align-items-center">
+            <div class="col-auto">
                 <form action="{{ url_for('export_selected_parties') }}" method="POST" id="exportPartiesForm">
                     <input type="hidden" name="party_ids" id="export_party_ids">
-                    <button type="submit" class="btn btn-outline-secondary">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">
                         <i class="bi bi-download me-1"></i> Export Selected
                     </button>
                 </form>
-                <a href="{{ url_for('import_parties') }}" class="btn btn-outline-secondary">
+            </div>
+            <div class="col-auto">
+                <a href="{{ url_for('import_parties') }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-upload me-1"></i> Import CSV
                 </a>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPartyModal">
+            </div>
+            <div class="col-auto ms-auto">
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPartyModal">
                     <i class="bi bi-plus-circle me-1"></i> Add Party
                 </button>
             </div>
         </div>
         
-        <div class="card">
-            <div class="card-body p-0">
-                <div class="table-container">
-                    <table class="table table-hover table-striped align-middle custom-table mb-0">
-                        <thead>
-                            <tr class="table-light">
-                                <th style="width: 40px;"><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Name"></th>
-                                <th style="width: 20%"><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Name"></th>
-                                <th style="width: 15%"><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter GSTIN"></th>
-                                <th style="width: 10%"><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter PAN"></th>
-                                <th style="width: 10%"><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter AMC"></th>
-                                <th style="width: 10%"><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter State"></th>
-                                <th style="width: 5%"><input type="text" class="form-control form-control-sm col-filter" placeholder="Code"></th>
-                                <th style="width: 20%"><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Address"></th>
-                                <th style="width: 10%"></th>
-                            </tr>
-                            <tr>
-                                <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll"></th>
-                                <th class="text-center">
-                                    <a href="{{ url_for('parties', sort_by='name', sort_dir='asc' if sort_by != 'name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
-                                        Name {% if sort_by == 'name' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                                    </a>
-                                </th>
-                                <th class="text-center">
-                                    <a href="{{ url_for('parties', sort_by='gstin', sort_dir='asc' if sort_by != 'gstin' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
-                                        GSTIN {% if sort_by == 'gstin' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                                    </a>
-                                </th>
-                                <th class="text-center">PAN</th>
-                                <th class="text-center">AMC Code</th>
-                                <th class="text-center">
-                                    <a href="{{ url_for('parties', sort_by='state', sort_dir='asc' if sort_by != 'state' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
-                                        State {% if sort_by == 'state' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                                    </a>
-                                </th>
-                                <th class="text-center">Code</th>
-                                <th class="text-center">Address</th>
-                                <th class="text-center">Actions</th>
-                            </tr>
-                        </thead>
+        <div class="card" style="overflow: hidden;">
+<table class="table table-hover align-middle mb-0 table-wrapper" id="partiesTable">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll"></th>
+                        <th>
+                            <a href="{{ url_for('parties', sort_by='name', sort_dir='asc' if sort_by != 'name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                Name {% if sort_by == 'name' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="{{ url_for('parties', sort_by='gstin', sort_dir='asc' if sort_by != 'gstin' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                GSTIN {% if sort_by == 'gstin' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                            </a>
+                        </th>
+                        <th>PAN</th>
+                        <th>AMC Code</th>
+                        <th>
+                            <a href="{{ url_for('parties', sort_by='state', sort_dir='asc' if sort_by != 'state' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                State {% if sort_by == 'state' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                            </a>
+                        </th>
+                        <th>Code</th>
+                        <th>Address</th>
+                        <th>Actions</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th class="text-center" style="width: 40px;"></th>
+                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Name"></th>
+                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter GSTIN"></th>
+                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter PAN"></th>
+                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter AMC"></th>
+                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter State"></th>
+                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Code"></th>
+                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Address"></th>
+                        <th></th>
+                    </tr>
+                </thead>
                         <tbody>
                             {% for party in parties %}
                             <tr>
@@ -176,7 +136,7 @@
         </div>
     </div>
 </div>
-    
+
 <div class="modal fade" id="addPartyModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -225,7 +185,7 @@
         </div>
     </div>
 </div>
-    
+
 {% if not parties %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -234,7 +194,8 @@
     });
 </script>
 {% endif %}
-    
+
+{% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const selectAll = document.getElementById('selectAll');
@@ -247,25 +208,34 @@
 
         function updatePartyIds() {
             const selectedIds = Array.from(document.querySelectorAll('input[name="party_ids"]:checked')).map(cb => cb.value);
-            document.getElementById('export_party_ids').value = selectedIds.join(',');
+            const exportInput = document.getElementById('export_party_ids');
+            if (exportInput) {
+                exportInput.value = selectedIds.join(',');
+            }
         }
 
         document.querySelectorAll('input[name="party_ids"]').forEach(cb => {
             cb.addEventListener('change', updatePartyIds);
         });
 
-        const filters = document.querySelectorAll('.col-filter');
-        const tableRows = document.querySelectorAll('tbody tr');
-    
+        const filters = document.querySelectorAll('#partiesTable .col-filter');
+        const tbody = document.getElementById('partiesTable').querySelector('tbody');
+        if (!filters.length || !tbody) return;
+        
+        const tableRows = Array.from(tbody.querySelectorAll('tr'));
+        
         function filterTable() {
             tableRows.forEach(row => {
                 let showRow = true;
                 filters.forEach((filter, index) => {
-                    const filterValue = filter.value.toLowerCase();
-                    const cell = row.cells[index];
+                    const filterValue = filter.value.toLowerCase().trim();
+                    if (!filterValue) return;
+                    
+                    const cellIndex = index + 1;
+                    const cell = row.cells[cellIndex];
                     if (cell) {
                         const cellValue = cell.textContent.toLowerCase();
-                        if (filterValue && !cellValue.includes(filterValue)) {
+                        if (!cellValue.includes(filterValue)) {
                             showRow = false;
                         }
                     }
@@ -273,11 +243,11 @@
                 row.style.display = showRow ? '' : 'none';
             });
         }
-    
+        
         filters.forEach(filter => {
             filter.addEventListener('input', filterTable);
         });
     });
 </script>
-    
+{% endblock %}
 {% endblock %}

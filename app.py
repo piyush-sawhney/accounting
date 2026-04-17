@@ -455,8 +455,19 @@ def parties():
         flash("Party added successfully", "success")
         return redirect(url_for("parties"))
 
-    parties = Party.query.all()
-    return render_template("parties.html", parties=parties)
+    sort_by = request.args.get("sort_by", "name")
+    sort_dir = request.args.get("sort_dir", "asc")
+
+    sort_column = getattr(Party, sort_by, Party.name)
+    if sort_dir == "desc":
+        query = Party.query.order_by(sort_column.desc())
+    else:
+        query = Party.query.order_by(sort_column.asc())
+
+    parties = query.all()
+    return render_template(
+        "parties.html", parties=parties, sort_by=sort_by, sort_dir=sort_dir
+    )
 
 
 @app.route("/export/parties")
@@ -1374,10 +1385,10 @@ def currency_filter(value):
 
 @app.context_processor
 def inject_now():
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     return dict(
-        current_date=datetime.utcnow().strftime("%Y-%m-%d"),
+        current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         settings={
             "company_name": Settings.get("company_name", ""),
             "arn_number": Settings.get("arn_number", ""),
