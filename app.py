@@ -2,7 +2,7 @@ import os
 import csv
 import io
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import (
     Flask,
     render_template,
@@ -12,9 +12,12 @@ from flask import (
     flash,
     send_file,
     jsonify,
+    make_response,
 )
 from werkzeug.utils import secure_filename
 from weasyprint import HTML
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 
 from models import db, Settings, Party, Invoice, InvoiceItem
 
@@ -224,6 +227,32 @@ def get_fiscal_year():
         return f"{now.year - 1}-{now.year}"
 
 
+def get_fy_dates(fy):
+    parts = fy.split("-")
+    if len(parts) != 2:
+        return datetime(datetime.now().year, 4, 1), datetime(
+            datetime.now().year + 1, 3, 31
+        )
+    start_year = int(parts[0])
+    start_date = datetime(start_year, 4, 1)
+    end_date = datetime(start_year + 1, 3, 31)
+    return start_date, end_date
+
+
+def current_month():
+    return datetime.now().month
+
+
+def get_greeting():
+    hour = datetime.now().hour
+    if hour < 12:
+        return "Good Morning"
+    elif hour < 17:
+        return "Good Afternoon"
+    else:
+        return "Good Evening"
+
+
 def generate_invoice_numbers():
     pending_invoices = (
         Invoice.query.filter(Invoice.invoice_no == None)
@@ -315,51 +344,170 @@ def settings():
 
 @app.route("/dashboard")
 def dashboard():
-    year = request.args.get("year")
-    month = request.args.get("month")
+    date_range = request.args.get("date_range", "this_month")
+    party_id = request.args.get("party")
     search = request.args.get("search", "").strip()
 
-    query = Invoice.query
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
 
-    if year:
-        query = query.filter(db.extract("year", Invoice.invoice_date) == int(year))
-    if month:
-        query = query.filter(db.extract("month", Invoice.invoice_date) == int(month))
-    if search:
-        query = query.join(Party).filter(
-            db.or_(
-                Invoice.invoice_no.ilike(f"%{search}%"),
-                Invoice.reference_serial_no.ilike(f"%{search}%"),
-                Party.gstin.ilike(f"%{search}%"),
-                Party.name.ilike(f"%{search}%"),
-            )
-        )
+    if date_range == "this_month":
+        period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        period_end = now
+    elif date_range == "last_month":
+        if current_month == 1:
+            period_start = datetime(current_year - 1, 12, 1)
+        else:
+            period_start = datetime(current_year, current_month - 1, 1)
+        period_end = now.replace(day=1) - timedelta(days=1)
+    elif date_range == "this_quarter":
+        quarter_start = ((current_month - 1) // 3) * 3 + 1
+        period_start = datetime(current_year, quarter_start, 1)
+        period_end = now
+    else:
+        period_start = datetime(current_year, 4, 1)
+        period_end = now
+
+    query = Invoice.query.filter(Invoice.invoice_date >= period_start)
+
+    if date_range != "all":
+        query = query.filter(Invoice.invoice_date <= period_end)
+
+    if party_id and party_id.strip():
+        try:
+            query = query.filter(Invoice.party_id == int(party_id))
+        except (ValueError, TypeError):
+            pass
 
     invoices = query.order_by(Invoice.invoice_date.desc()).all()
     parties = Party.query.all()
-    pending_count = Invoice.query.filter(Invoice.invoice_no == None).count()
 
-    all_invoices = Invoice.query.all()
-    years = sorted(
-        set(inv.invoice_date.year for inv in all_invoices if inv.invoice_date)
+    this_month_revenue = sum(
+        inv.calculate_gst().get("subtotal", 0) or 0
+        for inv in invoices
+        if not inv.is_rcm
     )
-    if not years:
-        years = [datetime.now().year]
+    this_month_gst = sum(
+        (inv.calculate_gst().get("cgst", 0) or 0)
+        + (inv.calculate_gst().get("sgst", 0) or 0)
+        + (inv.calculate_gst().get("igst", 0) or 0)
+        for inv in invoices
+        if not inv.is_rcm
+    )
+    invoice_count = len(invoices)
+    unlocked_count = sum(1 for inv in invoices if not inv.locked)
 
-    all_invoices_for_year = Invoice.query.all()
-    total_revenue = sum(
-        inv.calculate_gst().get("subtotal", 0) or 0 for inv in all_invoices_for_year
+    # Last month dates
+    last_month_start = (period_start - timedelta(days=1)).replace(day=1)
+    last_month_end = period_start - timedelta(days=1)
+    last_month_invoices = Invoice.query.filter(
+        Invoice.invoice_date >= last_month_start, Invoice.invoice_date <= last_month_end
+    ).all()
+
+    # Last 3 months dates
+    last_3m_start = now.replace(day=1) - timedelta(days=90)
+    last_3m_invoices = Invoice.query.filter(Invoice.invoice_date >= last_3m_start).all()
+
+    # Party growth data calculation
+    all_parties = Party.query.all()
+    party_growth_data = []
+
+    max_revenue = 0
+
+    for party in all_parties:
+        # This month revenue
+        this_month_invs = Invoice.query.filter(
+            Invoice.party_id == party.id,
+            Invoice.invoice_date >= period_start,
+            Invoice.invoice_date <= period_end,
+            Invoice.is_rcm == False,
+        ).all()
+        this_month_rev = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in this_month_invs
+        )
+
+        # Last month revenue
+        last_m_invs = Invoice.query.filter(
+            Invoice.party_id == party.id,
+            Invoice.invoice_date >= last_month_start,
+            Invoice.invoice_date <= last_month_end,
+            Invoice.is_rcm == False,
+        ).all()
+        last_month_rev = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in last_m_invs
+        )
+
+        # Last 3 months revenue
+        last_3m_invs = [
+            inv
+            for inv in last_3m_invoices
+            if inv.party_id == party.id and not inv.is_rcm
+        ]
+        last_3m_rev = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in last_3m_invs
+        )
+
+        # Last 6 months for trend (monthly breakdown)
+        trend_data = []
+        for i in range(5, -1, -1):
+            trg_month = (now.month - i + 12) % 12 + 1
+            trg_year = now.year if (now.month - i) > 0 else now.year - 1
+            if now.month - i <= 0:
+                trg_year = now.year - 1
+            month_rev = sum(
+                inv.calculate_gst().get("subtotal", 0) or 0
+                for inv in Invoice.query.filter(
+                    Invoice.party_id == party.id,
+                    db.extract("month", Invoice.invoice_date) == trg_month,
+                    db.extract("year", Invoice.invoice_date) == trg_year,
+                    Invoice.is_rcm == False,
+                ).all()
+            )
+            trend_data.append(month_rev)
+
+        # Calculate growth %
+        if last_month_rev > 0:
+            growth_pct = ((this_month_rev - last_month_rev) / last_month_rev) * 100
+        else:
+            growth_pct = 0 if this_month_rev == 0 else 100
+
+        if this_month_rev > max_revenue:
+            max_revenue = this_month_rev
+
+        if this_month_rev > 0 or last_month_rev > 0 or last_3m_rev > 0:
+            party_growth_data.append(
+                {
+                    "name": party.name,
+                    "this_month": this_month_rev,
+                    "last_month": last_month_rev,
+                    "last_3m": last_3m_rev,
+                    "growth": growth_pct,
+                    "trend": trend_data,
+                }
+            )
+
+    # Sort by revenue (default)
+    party_growth_data = sorted(
+        party_growth_data, key=lambda x: x["this_month"], reverse=True
     )
-    total_gst = (
-        sum(inv.calculate_gst().get("total", 0) or 0 for inv in all_invoices_for_year)
-        - total_revenue
+
+    # Overall revenue change calculation
+    total_last_month = sum(p["last_month"] for p in party_growth_data)
+    if total_last_month > 0:
+        revenue_change = (
+            (this_month_revenue - total_last_month) / total_last_month
+        ) * 100
+    else:
+        revenue_change = 0
+
+    pending_invoices = Invoice.query.filter(Invoice.invoice_no == None).all()
+    pending_count = len(pending_invoices)
+    pending_amount = sum(
+        inv.calculate_gst().get("total", 0) or 0 for inv in pending_invoices
     )
-    invoice_count = len(all_invoices_for_year)
 
     months = [
-        "Jan",
-        "Feb",
-        "Mar",
         "Apr",
         "May",
         "Jun",
@@ -369,16 +517,18 @@ def dashboard():
         "Oct",
         "Nov",
         "Dec",
+        "Jan",
+        "Feb",
+        "Mar",
     ]
     chart_labels = []
     chart_data = []
-    from datetime import timedelta
 
     for i in range(6, 0, -1):
-        target_month = (
-            datetime.now().replace(day=1) - timedelta(days=1) * (i - 1)
-        ).month
-        target_year = (datetime.now().replace(day=1) - timedelta(days=1) * (i - 1)).year
+        target_month = (now.month - i + 12) % 12 + 1
+        target_year = current_year if (now.month - i) >= 0 else current_year - 1
+        if now.month - i <= 0:
+            target_year = current_year - 1
         month_invoices = Invoice.query.filter(
             db.extract("month", Invoice.invoice_date) == target_month,
             db.extract("year", Invoice.invoice_date) == target_year,
@@ -386,23 +536,224 @@ def dashboard():
         revenue = sum(
             inv.calculate_gst().get("subtotal", 0) or 0 for inv in month_invoices
         )
-        chart_labels.append(f"{months[target_month - 1]} {target_year}")
+        chart_labels.append(months[target_month - 1])
         chart_data.append(revenue)
+
+    this_month_party_stats = {}
+    for inv in invoices:
+        party_name = inv.party.name if inv.party else "Unknown"
+        if party_name not in this_month_party_stats:
+            this_month_party_stats[party_name] = {"count": 0, "revenue": 0}
+        this_month_party_stats[party_name]["count"] += 1
+        this_month_party_stats[party_name]["revenue"] += (
+            inv.calculate_gst().get("subtotal", 0) or 0
+        )
+
+    top_parties = sorted(
+        this_month_party_stats.items(), key=lambda x: x[1]["revenue"], reverse=True
+    )[:5]
+
+    company_name = Settings.get("company_name", "")
+    greeting = get_greeting()
 
     return render_template(
         "dashboard.html",
-        invoices=invoices,
+        invoices=invoices[:5],
         parties=parties,
         pending_count=pending_count,
-        selected_year=year,
-        selected_month=month,
+        pending_amount=pending_amount,
+        this_month_revenue=this_month_revenue,
+        this_month_gst=this_month_gst,
+        invoice_count=invoice_count,
+        revenue_change=revenue_change,
+        chart_labels=chart_labels,
+        chart_data=chart_data,
+        top_parties=top_parties,
+        date_range=date_range,
+        selected_party=party_id,
+        greeting=greeting,
+        company_name=company_name,
+        party_growth_data=party_growth_data,
+        max_revenue=max_revenue,
+    )
+
+    total_revenue = sum(inv.calculate_gst().get("subtotal", 0) or 0 for inv in invoices)
+    total_gst = sum(
+        (inv.calculate_gst().get("cgst", 0) or 0)
+        + (inv.calculate_gst().get("sgst", 0) or 0)
+        + (inv.calculate_gst().get("igst", 0) or 0)
+        for inv in invoices
+    )
+    invoice_count = len(invoices)
+
+    this_month_start = datetime.now().replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    this_month_invoices_query = Invoice.query.filter(
+        Invoice.invoice_date >= this_month_start
+    )
+    this_month_invoices = this_month_invoices_query.all()
+    this_month_count = len(this_month_invoices)
+
+    monthly_pending = Invoice.query.filter(
+        Invoice.invoice_no == None, Invoice.invoice_date >= this_month_start
+    ).count()
+
+    this_month_party_stats = {}
+    for inv in this_month_invoices:
+        party_name = inv.party.name if inv.party else "Unknown"
+        if party_name not in this_month_party_stats:
+            this_month_party_stats[party_name] = 0
+        this_month_party_stats[party_name] += 1
+
+    party_chart_labels = list(this_month_party_stats.keys())[:5]
+    party_chart_data = [this_month_party_stats[p] for p in party_chart_labels]
+
+    last_fy_start, _ = get_fy_dates(
+        str(current_year - 1)[-2:] + "-" + str(current_year)[-2:]
+    )
+    _, last_fy_end = get_fy_dates(
+        str(current_year - 1)[-2:] + "-" + str(current_year)[-2:]
+    )
+    last_fy_invoices = Invoice.query.filter(
+        Invoice.invoice_date >= last_fy_start, Invoice.invoice_date <= last_fy_end
+    ).all()
+    last_fy_revenue = sum(
+        inv.calculate_gst().get("subtotal", 0) or 0 for inv in last_fy_invoices
+    )
+
+    months = [
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+        "Jan",
+        "Feb",
+        "Mar",
+    ]
+    chart_labels = []
+    chart_data = []
+
+    for i, month_name in enumerate(months):
+        if date_range == "this_fy":
+            if i < datetime.now().month + 8:
+                month_num = (i % 12) + 1
+                if i < 9:
+                    target_month = i + 4
+                    target_year = current_year - 1
+                else:
+                    target_month = (i + 4) % 12
+                    if target_month == 0:
+                        target_month = 12
+                    target_year = current_year
+                month_invoices = Invoice.query.filter(
+                    db.extract("month", Invoice.invoice_date) == target_month,
+                    db.extract("year", Invoice.invoice_date) == target_year,
+                ).all()
+                revenue = sum(
+                    inv.calculate_gst().get("subtotal", 0) or 0
+                    for inv in month_invoices
+                )
+                if target_month == 4 and i == 0 and current_month() < 4:
+                    revenue = 0
+                chart_labels.append(month_name)
+                chart_data.append(revenue)
+        else:
+            target_month = (i % 12) + 1
+            if i < 9:
+                target_year = current_year - 1
+            else:
+                target_year = current_year
+            month_invoices = Invoice.query.filter(
+                db.extract("month", Invoice.invoice_date) == target_month,
+                db.extract("year", Invoice.invoice_date) == target_year,
+            ).all()
+            revenue = sum(
+                inv.calculate_gst().get("subtotal", 0) or 0 for inv in month_invoices
+            )
+            chart_labels.append(month_name)
+            chart_data.append(revenue)
+
+    party_stats = {}
+    for inv in invoices:
+        party_name = inv.party.name if inv.party else "Unknown"
+        if party_name not in party_stats:
+            party_stats[party_name] = {"count": 0, "revenue": 0, "gst": 0}
+        party_stats[party_name]["count"] += 1
+        gst_data = inv.calculate_gst()
+        party_stats[party_name]["revenue"] += gst_data.get("subtotal", 0) or 0
+        party_stats[party_name]["gst"] += (
+            (gst_data.get("cgst", 0) or 0)
+            + (gst_data.get("sgst", 0) or 0)
+            + (gst_data.get("igst", 0) or 0)
+        )
+
+    last_fy_party_stats = {}
+    for inv in last_fy_invoices:
+        party_name = inv.party.name if inv.party else "Unknown"
+        if party_name not in last_fy_party_stats:
+            last_fy_party_stats[party_name] = {"revenue": 0}
+        gst_data = inv.calculate_gst()
+        last_fy_party_stats[party_name]["revenue"] += gst_data.get("subtotal", 0) or 0
+
+    top_parties = sorted(
+        party_stats.items(), key=lambda x: x[1]["revenue"], reverse=True
+    )[:10]
+    top_growing = []
+    for party_name, stats in party_stats.items():
+        last_revenue = last_fy_party_stats.get(party_name, {}).get("revenue", 0)
+        growth = (
+            ((stats["revenue"] - last_revenue) / last_revenue * 100)
+            if last_revenue > 0
+            else (100 if stats["revenue"] > 0 else 0)
+        )
+        top_growing.append(
+            {
+                "name": party_name,
+                "revenue": stats["revenue"],
+                "last_revenue": last_revenue,
+                "growth": growth,
+            }
+        )
+    top_growing = sorted(top_growing, key=lambda x: x["growth"], reverse=True)[:10]
+
+    years = sorted(
+        set(inv.invoice_date.year for inv in Invoice.query.all() if inv.invoice_date)
+    )
+    if not years:
+        years = [current_year]
+
+    return render_template(
+        "dashboard.html",
+        invoices=invoices[:20],
+        parties=parties,
+        pending_count=pending_count,
+        selected_year=current_fy,
+        selected_month="",
         search_query=search,
         years=years,
         total_revenue=total_revenue,
         total_gst=total_gst,
         invoice_count=invoice_count,
+        unlocked_count=unlocked_count,
         chart_labels=chart_labels,
         chart_data=chart_data,
+        date_range=date_range,
+        selected_party=party_id,
+        tax_type_filter=tax_type_filter,
+        status_filter=status_filter,
+        top_parties=top_parties,
+        top_growing=top_growing,
+        last_fy_revenue=last_fy_revenue,
+        this_month_count=this_month_count,
+        monthly_pending=monthly_pending,
+        party_chart_labels=party_chart_labels,
+        party_chart_data=party_chart_data,
     )
 
 
@@ -827,7 +1178,8 @@ def generate_numbers():
 
 @app.route("/batch/export", methods=["POST"])
 def batch_export():
-    invoice_ids = request.form.getlist("invoice_ids")
+    ids_raw = request.form.get("invoice_ids", "")
+    invoice_ids = [x.strip() for x in ids_raw.split(",") if x.strip()]
 
     if not invoice_ids:
         flash("No invoices selected", "warning")
@@ -876,6 +1228,69 @@ def batch_export():
             os.remove(pdf_path)
 
     return send_file(zip_path, as_attachment=True, download_name=f"invoices_batch.zip")
+
+
+@app.route("/batch/export/excel", methods=["POST"])
+def batch_export_excel():
+    ids_raw = request.form.get("invoice_ids", "")
+    invoice_ids = [x.strip() for x in ids_raw.split(",") if x.strip()]
+
+    if not invoice_ids:
+        flash("No invoices selected", "warning")
+        return redirect(url_for("manage_invoices"))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Invoices"
+
+    header_fill = PatternFill(
+        start_color="4F46E5", end_color="4F46E5", fill_type="solid"
+    )
+    header_font = Font(bold=True, color="FFFFFF")
+
+    headers = ["Invoice Date", "Invoice Number", "GSTIN", "Party Name", "Taxable Value"]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    for idx, invoice_id in enumerate(invoice_ids, 2):
+        invoice = Invoice.query.get(invoice_id)
+        if not invoice:
+            continue
+
+        gst_data = invoice.calculate_gst()
+        taxable = gst_data.get("subtotal", 0) or 0
+
+        ws.cell(
+            row=idx,
+            column=1,
+            value=invoice.invoice_date.strftime("%d-%m-%Y")
+            if invoice.invoice_date
+            else "",
+        )
+        ws.cell(row=idx, column=2, value=invoice.invoice_no or "Pending")
+        ws.cell(row=idx, column=3, value=invoice.party.gstin if invoice.party else "")
+        ws.cell(row=idx, column=4, value=invoice.party.name if invoice.party else "")
+        ws.cell(row=idx, column=5, value=taxable)
+
+    for col in range(1, 6):
+        ws.column_dimensions[chr(64 + col)].width = 18
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"invoices_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return make_response(
+        send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    )
 
 
 @app.route("/import/parties", methods=["GET", "POST"])

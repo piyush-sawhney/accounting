@@ -4,30 +4,81 @@
 
 {% block extra_css %}
 <style>
-    .stat-card {
+    .kpi-card {
         border-radius: var(--m3-radius-large);
         padding: 1.5rem;
-        transition: all var(--m3-motion-duration-medium) ease;
+        height: 100%;
     }
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--m3-elevation-3);
-    }
-    .stat-value {
+    .kpi-value {
         font-size: 2rem;
         font-weight: 600;
         color: var(--m3-scheme-on-surface);
+        line-height: 1.2;
     }
-    .stat-label {
+    .kpi-value .label {
         font-size: 0.75rem;
         font-weight: 500;
-        color: var(--m3-scheme-on-surface-variant);
+        display: block;
+        margin-top: 0.5rem;
+    }
+    .kpi-change {
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-top: 0.5rem;
+    }
+    .kpi-change.up { color: #059669; }
+    .kpi-change.down { color: #dc2626; }
+    
+    .recent-table {
+        font-size: 0.875rem;
+    }
+    .recent-table th {
+        font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        color: var(--m3-scheme-on-surface-variant);
+        border-bottom: 1px solid var(--m3-scheme-outline);
     }
-    .chart-container {
-        border-radius: var(--m3-radius-large);
-        padding: 1.5rem;
+    .recent-table td {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .party-rank {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--m3-scheme-primary-container);
+        color: var(--m3-scheme-on-primary-container);
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .party-bar-bg {
+        height: 6px;
+        background: var(--m3-scheme-surface-variant);
+        border-radius: 3px;
+        margin-top: 4px;
+    }
+    .party-bar-fill {
+        height: 100%;
+        background: var(--m3-scheme-primary);
+        border-radius: 3px;
+    }
+    
+    .mini-chart {
+        height: 60px;
+    }
+    
+    .quick-action {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--m3-radius-medium);
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 </style>
 {% endblock %}
@@ -36,150 +87,196 @@
 <div class="container-fluid px-4" style="margin-top: 80px;">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="h4 fw-semibold mb-1">Business Overview</h2>
-            <p class="text-muted mb-0">Your invoice summary at a glance</p>
+            <h1 class="h4 fw-semibold mb-1">{{ greeting }} 👋</h1>
+            <p class="text-muted mb-0">{{ company_name if company_name else 'KNAPS Invoicing' }}</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('create_invoice') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i> New Invoice
+            </a>
         </div>
     </div>
-    
-    {% if pending_count > 0 %}
-    <div class="alert alert-success d-flex align-items-center mb-4 border-0" style="border-radius: var(--m3-radius-large);" role="alert">
-        <i class="bi bi-magic fs-5 me-2"></i>
-        <div class="d-flex align-items-center flex-grow-1">
-            <div>
-                <strong>Pending Invoices:</strong> {{ pending_count }} invoice{{ 's' if pending_count != 1 else '' }} waiting for numbers.
-            </div>
-            <button type="button" class="btn btn-success btn-sm ms-3" data-bs-toggle="modal" data-bs-target="#generateNumbersModal">
-                <i class="bi bi-stars me-1"></i> Generate Numbers
-            </button>
-        </div>
-    </div>
-    {% endif %}
     
     <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card stat-card h-100">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="stat-label mb-2">Total Revenue</div>
-                        <div class="stat-value">₹{{ total_revenue | currency }}</div>
-                    </div>
-                    <div class="p-2 rounded-circle" style="background-color: var(--m3-scheme-primary-container);">
-                        <i class="bi bi-currency-rupee fs-5" style="color: var(--m3-scheme-on-primary-container);"></i>
-                    </div>
+            <div class="card kpi-card text-center">
+                <div class="kpi-value">₹{{ this_month_revenue | currency }}</div>
+                <span class="label" style="color: var(--m3-scheme-on-surface-variant); text-transform: uppercase; font-size: 0.7rem; font-weight: 500;">This Month Revenue</span>
+                {% if revenue_change != 0 %}
+                <div class="kpi-change {% if revenue_change > 0 %}up{% else %}down{% endif %}">
+                    {% if revenue_change > 0 %}↑{% else %}↓{% endif %} {{ "%.1f"|format(revenue_change) }}% vs last month
                 </div>
-                <div class="text-muted small mt-2">For fiscal year {{ years[0] if years else '' }}</div>
+                {% endif %}
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card stat-card h-100">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="stat-label mb-2">GST Collected</div>
-                        <div class="stat-value">₹{{ total_gst | currency }}</div>
-                    </div>
-                    <div class="p-2 rounded-circle" style="background-color: var(--m3-scheme-secondary-container);">
-                        <i class="bi bi-percent fs-5" style="color: var(--m3-scheme-on-secondary-container);"></i>
-                    </div>
-                </div>
-                <div class="text-muted small mt-2">Tax collected this year</div>
+            <div class="card kpi-card text-center">
+                <div class="kpi-value">{{ pending_count }}</div>
+                <span class="label" style="color: var(--m3-scheme-on-surface-variant); text-transform: uppercase; font-size: 0.7rem; font-weight: 500;">Pending Invoices</span>
+                <div class="text-muted small mt-2">₹{{ "%.0f"|format(pending_amount) }} awaiting</div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card stat-card h-100">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="stat-label mb-2">Total Invoices</div>
-                        <div class="stat-value">{{ invoice_count }}</div>
-                    </div>
-                    <div class="p-2 rounded-circle" style="background-color: var(--m3-scheme-tertiary-container);">
-                        <i class="bi bi-file-text fs-5" style="color: var(--m3-scheme-on-tertiary-container);"></i>
-                    </div>
-                </div>
-                <div class="text-muted small mt-2">Invoices generated</div>
+            <div class="card kpi-card text-center">
+                <div class="kpi-value">{{ invoice_count }}</div>
+                <span class="label" style="color: var(--m3-scheme-on-surface-variant); text-transform: uppercase; font-size: 0.7rem; font-weight: 500;">Unlocked Invoices</span>
             </div>
         </div>
     </div>
     
-    <div class="card chart-container">
-        <h5 class="fw-semibold mb-3">Revenue Trend (Last 6 Months)</h5>
-        <canvas id="revenueChart" style="max-height: 280px;"></canvas>
+    <div class="row g-4">
+    
+    <div class="row g-4">
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header bg-white border-bottom-0 pt-3">
+                    <h5 class="mb-0 fw-semibold">Recent Invoices</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table recent-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Party</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-end">GST</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invoice in invoices %}
+                            <tr>
+                                <td>
+                                    <div class="fw-medium">{{ invoice.party.name if invoice.party else '-' }}</div>
+                                    <div class="text-muted small">{{ invoice.invoice_date.strftime('%d %b') }}</div>
+                                </td>
+                                <td class="text-end">₹{{ "%.0f"|format(invoice.calculate_gst().subtotal or 0) }}</td>
+                                <td class="text-end text-muted">₹{{ "%.0f"|format((invoice.calculate_gst().cgst or 0) + (invoice.calculate_gst().sgst or 0) + (invoice.calculate_gst().igst or 0)) }}</td>
+                                <td>
+                                    <a href="{{ url_for('view_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">No recent invoices</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white">
+                    <a href="{{ url_for('manage_invoices') }}" class="btn btn-link text-primary w-100">View All Invoices →</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header bg-white border-bottom-0 pt-3">
+                    <h5 class="mb-0 fw-semibold">Top Parties</h5>
+                </div>
+                <div class="card-body">
+                    {% for party, stats in top_parties %}
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="party-rank">{{ loop.index }}</div>
+                        <div class="flex-grow-1 ms-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="fw-medium">{{ party }}</span>
+                                <span class="text-muted">₹{{ "%.0f"|format(stats.revenue) }}</span>
+                            </div>
+                            <div class="party-bar-bg">
+                                <div class="party-bar-fill" style="width: {{ (stats.revenue / this_month_revenue * 100) if this_month_revenue > 0 else 0 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">No data</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card h-100">
+                <div class="card-header bg-white border-bottom-0 pt-3">
+                    <h5 class="mb-0 fw-semibold">Quick Stats</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center py-3">
+                        <div class="h2 fw-bold">{{ invoice_count }}</div>
+                        <div class="text-muted small">Invoices This Period</div>
+                    </div>
+                    <hr>
+                    <form method="GET" action="{{ url_for('dashboard') }}" class="mb-3">
+                        <label class="form-label text-muted small">View Period</label>
+                        <select name="date_range" class="form-select" onchange="this.form.submit()">
+                            <option value="this_month" {% if date_range == 'this_month' %}selected{% endif %}>This Month</option>
+                            <option value="last_month" {% if date_range == 'last_month' %}selected{% endif %}>Last Month</option>
+                            <option value="this_quarter" {% if date_range == 'this_quarter' %}selected{% endif %}>This Quarter</option>
+                        </select>
+                        <input type="hidden" name="party" value="{{ selected_party }}">
+                    </form>
+                    <div class="d-grid">
+                        <a href="{{ url_for('manage_invoices') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-list me-1"></i> All Invoices
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    const ctx = document.getElementById('revenueChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: {{ chart_labels | tojson }},
-            datasets: [{
-                label: 'Revenue (₹)',
-                data: {{ chart_data | tojson }},
-                backgroundColor: '#4f46e5',
-                borderRadius: 8,
-                borderSkipped: false,
-            }]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: '#e2e8f0'
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    }
-                }
-            }
-        }
-    });
-</script>
-
-{% if pending_count > 0 %}
-<div class="modal fade" id="generateNumbersModal" tabindex="-1" aria-labelledby="generateNumbersModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="p-2 rounded-circle" style="background-color: var(--m3-scheme-primary-container);">
-                        <i class="bi bi-stars fs-4" style="color: var(--m3-scheme-on-primary-container);"></i>
-                    </div>
-                    <div>
-                        <h5 class="modal-title mb-0" id="generateNumbersModalLabel">Auto-Generate Invoice Numbers</h5>
+    
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-semibold">Party Growth Analysis</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 50vh; overflow-y: auto;">
+                        <table class="table table-hover mb-0" style="font-size: 0.85rem;">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th class="text-muted small">PARTY</th>
+                                    <th class="text-muted small text-end">THIS MONTH</th>
+                                    <th class="text-muted small text-end">LAST MONTH</th>
+                                    <th class="text-muted small text-end">LAST 3 MONTHS</th>
+                                    <th class="text-muted small text-center">GROWTH %</th>
+                                    <th class="text-muted small">6-MONTH TREND</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for party in party_growth_data %}
+                                <tr>
+                                    <td class="fw-medium">{{ party.name }}</td>
+                                    <td class="text-end">₹{{ "%.0f"|format(party.this_month) }}</td>
+                                    <td class="text-end text-muted">₹{{ "%.0f"|format(party.last_month) }}</td>
+                                    <td class="text-end text-muted">₹{{ "%.0f"|format(party.last_3m) }}</td>
+                                    <td class="text-center">
+                                        {% if party.growth > 0 %}
+                                        <span class="badge" style="background: #d1fae5; color: #065f46;">↑ {{ "%.0f"|format(party.growth) }}%</span>
+                                        {% elif party.growth < 0 %}
+                                        <span class="badge" style="background: #fee2e2; color: #991b1b;">↓ {{ "%.0f"|format(party.growth) }}%</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-muted">0%</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1">
+                                            {% for m_rev in party.trend %}
+                                            <div style="width: 8px; height: {{ (m_rev / max_revenue * 20 + 2) if max_revenue > 0 else 2 }}px; background: var(--m3-scheme-primary); border-radius: 1px;" title="₹{{ "%.0f"|format(m_rev) }}"></div>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-3">You are about to generate sequential invoice numbers for <strong class="text-success">{{ pending_count }} pending invoice{{ 's' if pending_count != 1 else '' }}</strong>.</p>
-                <p class="text-muted small mb-3">This will assign invoice numbers based on the current fiscal year settings and automatically lock them.</p>
-                <div class="alert alert-warning border-0" style="border-radius: var(--m3-radius-medium);">
-                    <i class="bi bi-shield-exclamation me-2"></i>This action cannot be undone. All invoices will be locked after numbering.
-                </div>
-            </div>
-            <div class="modal-footer border-0">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{{ url_for('generate_numbers') }}" method="POST">
-                    <button type="submit" class="btn btn-success">
-                        <i class="bi bi-check-lg me-1"></i> Generate {{ pending_count }} Number{{ 's' if pending_count != 1 else '' }}
-                    </button>
-                </form>
             </div>
         </div>
     </div>
 </div>
-{% endif %}
 {% endblock %}

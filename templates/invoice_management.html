@@ -122,8 +122,14 @@
                 <span id="selectedCount" class="badge bg-dark">0 Selected</span>
                 <form id="batchExportForm" action="{{ url_for('batch_export') }}" method="POST">
                     <input type="hidden" name="invoice_ids" id="export_ids">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+                    </button>
+                </form>
+                <form id="batchExportExcelForm" action="{{ url_for('batch_export_excel') }}" method="POST">
+                    <input type="hidden" name="invoice_ids" id="excel_ids">
                     <button type="submit" class="btn btn-sm btn-success">
-                        <i class="bi bi-download me-1"></i> Export Selected
+                        <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
                     </button>
                 </form>
             </div>
@@ -263,6 +269,7 @@
         document.getElementById('unlock_ids').value = selectedIds.join(',');
         document.getElementById('delete_ids').value = selectedIds.join(',');
         document.getElementById('export_ids').value = selectedIds.join(',');
+        document.getElementById('excel_ids').value = selectedIds.join(',');
         document.getElementById('sync_ids').value = selectedIds.join(',');
         
         // Update selected count
