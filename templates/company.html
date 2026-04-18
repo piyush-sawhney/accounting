@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Settings - KNAPS Invoice Management Software{% endblock %}
+{% block title %}Company - Invoice Management Software{% endblock %}
 
 {% block content %}
 <div class="col-md-10 py-4">
@@ -17,12 +17,12 @@
         {% endwith %}
         
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="h3 text-dark"><i class="bi bi-gear me-2"></i>Settings</h2>
+            <h2 class="h3"><i class="bi bi-building me-2"></i>Company</h2>
         </div>
         
         <div class="card mb-4">
-            <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
-                <h5 class="mb-0 text-primary">Supplier Details</h5>
+            <div class="card-header bg-white pt-4 pb-2">
+                <h5 class="mb-0 text-primary">Company Details</h5>
             </div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
@@ -50,21 +50,26 @@
                         <label class="form-label text-muted small">Logo (for invoices)</label>
                         <input type="file" name="logo" class="form-control" accept="image/*">
                         {% if logo %}
-                        <div class="mt-2 p-2 border rounded d-inline-block">
-                            <img src="{{ url_for('static', filename='logos/' + logo) }}" alt="Logo" style="max-height: 80px;">
-                            <span class="badge bg-light text-success ms-2">Current</span>
+                        <div class="mt-2 d-flex align-items-center gap-2">
+                            <div class="p-2 border rounded">
+                                <img src="{{ url_for('static', filename='logos/' + logo) }}" alt="Logo" style="max-height: 60px; max-width: 150px;">
+                            </div>
+                            <span class="badge bg-success">Current Logo</span>
+                            <a href="{{ url_for('delete_logo') }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this logo?')">
+                                <i class="bi bi-trash"></i> Delete
+                            </a>
                         </div>
                         {% endif %}
                     </div>
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-save me-1"></i> Save Settings
+                        <i class="bi bi-save me-1"></i> Save Company
                     </button>
                 </form>
             </div>
         </div>
         
         <div class="card">
-            <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+            <div class="card-header bg-white pt-4 pb-2">
                 <h5 class="mb-0 text-primary">Invoice Number Format</h5>
             </div>
             <div class="card-body">

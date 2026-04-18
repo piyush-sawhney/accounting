@@ -1,33 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Parties - KNAPS Invoice Management Software{% endblock %}
-
-{% block extra_css %}
-<style>
-    .table-wrapper {
-        max-height: 50vh;
-        overflow-y: auto;
-    }
-    .table-wrapper thead th {
-        position: sticky;
-        top: 0;
-        background: var(--m3-scheme-surface-variant);
-        z-index: 10;
-    }
-    .table-wrapper thead tr.filter-row th {
-        top: 45px;
-        background: var(--m3-scheme-surface-variant);
-    }
-    .table-wrapper .col-filter {
-        width: 100%;
-        font-size: 0.75rem;
-        padding: 4px 6px;
-    }
-    .table-wrapper tbody tr:hover td {
-        background-color: var(--m3-scheme-primary-container);
-    }
-</style>
-{% endblock %}
+{% block title %}Parties - Invoice Management Software{% endblock %}
 
 {% block content %}
 <div class="col-md-10 py-4">
@@ -43,95 +16,98 @@
             {% endif %}
         {% endwith %}
         
-        <div class="row mb-3 g-2 align-items-center">
+        <div class="row mb-4 g-3 align-items-center">
             <div class="col-auto">
                 <form action="{{ url_for('export_selected_parties') }}" method="POST" id="exportPartiesForm">
                     <input type="hidden" name="party_ids" id="export_party_ids">
-                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-download me-1"></i> Export Selected
                     </button>
                 </form>
             </div>
             <div class="col-auto">
-                <a href="{{ url_for('import_parties') }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ url_for('import_parties') }}" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-upload me-1"></i> Import CSV
                 </a>
             </div>
             <div class="col-auto ms-auto">
-                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addPartyModal">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPartyModal">
                     <i class="bi bi-plus-circle me-1"></i> Add Party
                 </button>
             </div>
         </div>
         
-        <div class="card" style="overflow: hidden;">
-<table class="table table-hover align-middle mb-0 table-wrapper" id="partiesTable">
-                <thead>
-                    <tr>
-                        <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll"></th>
-                        <th>
-                            <a href="{{ url_for('parties', sort_by='name', sort_dir='asc' if sort_by != 'name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
-                                Name {% if sort_by == 'name' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                            </a>
-                        </th>
-                        <th>
-                            <a href="{{ url_for('parties', sort_by='gstin', sort_dir='asc' if sort_by != 'gstin' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
-                                GSTIN {% if sort_by == 'gstin' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                            </a>
-                        </th>
-                        <th>PAN</th>
-                        <th>AMC Code</th>
-                        <th>
-                            <a href="{{ url_for('parties', sort_by='state', sort_dir='asc' if sort_by != 'state' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
-                                State {% if sort_by == 'state' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                            </a>
-                        </th>
-                        <th>Code</th>
-                        <th>Address</th>
-                        <th>Actions</th>
-                    </tr>
-                    <tr class="filter-row">
-                        <th class="text-center" style="width: 40px;"></th>
-                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Name"></th>
-                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter GSTIN"></th>
-                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter PAN"></th>
-                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter AMC"></th>
-                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter State"></th>
-                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Code"></th>
-                        <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Address"></th>
-                        <th></th>
-                    </tr>
-                </thead>
-                        <tbody>
-                            {% for party in parties %}
-                            <tr>
-                                <td class="text-center"><input type="checkbox" name="party_ids" value="{{ party.id }}"></td>
-                                <td><strong>{{ party.name }}</strong></td>
-                                <td><code>{{ party.gstin }}</code></td>
-                                <td class="text-muted">{{ party.pan or '-' }}</td>
-                                <td class="text-muted">{{ party.amc_code or '-' }}</td>
-                                <td>{{ party.state or '-' }}</td>
-                                <td>{{ party.state_code or '-' }}</td>
-                                <td class="text-muted small">{{ party.address or '-' }}</td>
-                                <td>
-                                    <div class="btn-group" role="group">
-                                        <a href="{{ url_for('edit_party', party_id=party.id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="modal" data-bs-target="#deletePartyModal" data-party-id="{{ party.id }}" data-party-name="{{ party.name }}">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">No parties found. Add one to get started.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <div class="card">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                <h5 class="mb-3">Parties</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0" id="partiesTable">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll"></th>
+                            <th>
+                                <a href="{{ url_for('parties', sort_by='name', sort_dir='asc' if sort_by != 'name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                    Name {% if sort_by == 'name' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ url_for('parties', sort_by='gstin', sort_dir='asc' if sort_by != 'gstin' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                    GSTIN {% if sort_by == 'gstin' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                </a>
+                            </th>
+                            <th>PAN</th>
+                            <th>AMC Code</th>
+                            <th>
+                                <a href="{{ url_for('parties', sort_by='state', sort_dir='asc' if sort_by != 'state' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                    State {% if sort_by == 'state' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                </a>
+                            </th>
+                            <th>Code</th>
+                            <th>Address</th>
+                            <th>Actions</th>
+                        </tr>
+                        <tr class="filter-row">
+                            <th class="text-center" style="width: 40px;"></th>
+                            <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Name"></th>
+                            <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter GSTIN"></th>
+                            <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter PAN"></th>
+                            <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter AMC"></th>
+                            <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter State"></th>
+                            <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Code"></th>
+                            <th><input type="text" class="form-control form-control-sm col-filter" placeholder="Filter Address"></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for party in parties %}
+                        <tr>
+                            <td class="text-center"><input type="checkbox" name="party_ids" value="{{ party.id }}"></td>
+                            <td><strong>{{ party.name }}</strong></td>
+                            <td><code>{{ party.gstin }}</code></td>
+                            <td class="text-muted">{{ party.pan or '-' }}</td>
+                            <td class="text-muted">{{ party.amc_code or '-' }}</td>
+                            <td>{{ party.state or '-' }}</td>
+                            <td>{{ party.state_code or '-' }}</td>
+                            <td class="text-muted small">{{ party.address or '-' }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('edit_party', party_id=party.id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="modal" data-bs-target="#deletePartyModal" data-party-id="{{ party.id }}" data-party-name="{{ party.name }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center py-4 text-muted">No parties found. Add one to get started.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

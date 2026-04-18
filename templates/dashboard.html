@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - KNAPS Invoice Management Software{% endblock %}
+{% block title %}Dashboard - Invoice Management Software{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -87,8 +87,8 @@
 <div class="container-fluid px-4" style="margin-top: 80px;">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h4 fw-semibold mb-1">{{ greeting }} 👋</h1>
-            <p class="text-muted mb-0">{{ company_name if company_name else 'KNAPS Invoice Management Software' }}</p>
+            <h1 class="h4 fw-semibold mb-1">{{ greeting }}</h1>
+            <p class="text-muted mb-0">{{ session.get('full_name') or session.username }}</p>
         </div>
         <div class="d-flex gap-2">
             <a href="{{ url_for('create_invoice') }}" class="btn btn-primary">
@@ -99,7 +99,7 @@
     
     <div class="row g-4 mb-4">
         <div class="col-md-8">
-            <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
+            <div class="card border-0 h-100" style="border-radius: 16px;">
                 <div class="card-body p-4 d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div>
@@ -189,7 +189,7 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100" style="border-radius: 16px;">
+            <div class="card border-0 h-100" style="border-radius: 16px;">
                 <div class="card-body text-center p-4 d-flex flex-column justify-content-center">
                     <div class="text-muted small fw-medium text-uppercase mb-3" style="letter-spacing: 0.5px;">Pending Invoices</div>
                     <div class="display-3 fw-bold mb-2" style="color: #4f46e5;">{{ pending_count }}</div>

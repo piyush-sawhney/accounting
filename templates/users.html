@@ -55,6 +55,7 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
+                            <th>Full Name</th>
                             <th>Username</th>
                             <th>Role</th>
                             <th>Status</th>
@@ -66,7 +67,8 @@
                     <tbody>
                         {% for user in users %}
                         <tr>
-                            <td class="fw-medium">{{ user.username }}</td>
+                            <td class="fw-medium">{{ user.full_name }}</td>
+                            <td>{{ user.username }}</td>
                             <td>
                                 <span class="badge bg-{{ 'primary' if user.role == 'admin' else 'secondary' }}">
                                     {{ user.role }}
@@ -190,11 +192,15 @@
                 <div class="modal-body">
                     <input type="hidden" name="action" value="create">
                     <div class="mb-3">
-                        <label class="form-label">Username</label>
+                        <label class="form-label">Full Name *</label>
+                        <input type="text" name="full_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Username *</label>
                         <input type="text" name="username" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
+                        <label class="form-label">Password *</label>
                         <input type="password" name="password" class="form-control" required minlength="6">
                     </div>
                     <div class="mb-3">

@@ -337,6 +337,9 @@ def get_greeting():
 
 
 def generate_invoice_numbers():
+    current_fy = get_fiscal_year()
+    fy_prefix = current_fy.split("-")[0][-2:] + "-" + current_fy[-2:]
+
     pending_invoices = (
         Invoice.query.filter(Invoice.invoice_no == None)
         .order_by(Invoice.invoice_date)
@@ -348,6 +351,7 @@ def generate_invoice_numbers():
 
     last_invoice = (
         Invoice.query.filter(Invoice.invoice_no != None)
+        .filter(Invoice.invoice_no.like(f"{fy_prefix}%"))
         .order_by(Invoice.invoice_no.desc())
         .first()
     )
@@ -367,9 +371,8 @@ def generate_invoice_numbers():
 
     for invoice in pending_invoices:
         seq += 1
-        invoice_no = f"{get_fiscal_year().split('-')[0][-2:]}-{get_fiscal_year()[-2:]}/{str(seq).zfill(3)}"
+        invoice_no = f"{fy_prefix}/{str(seq).zfill(3)}"
         invoice.invoice_no = invoice_no
-        invoice.locked = True
 
         total = invoice.calculate_gst()["total"]
         invoice.total_in_words = number_to_words(total)
@@ -420,6 +423,7 @@ def login():
         if user and user.is_active and user.check_password(password):
             session["user_id"] = user.id
             session["username"] = user.username
+            session["full_name"] = user.full_name
             session["role"] = user.role
 
             session.pop("setup_codes", None)
@@ -432,7 +436,7 @@ def login():
                 session.permanent = True
                 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 
-            flash(f"Welcome back, {user.username}!", "success")
+            flash(f"Welcome back, {user.full_name}!", "success")
             next_url = request.args.get("next")
             return redirect(next_url or url_for("dashboard"))
 
@@ -455,18 +459,24 @@ def setup():
         return redirect(url_for("login"))
 
     if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
 
-        if not username or not password:
+        if not full_name or not username or not password:
             flash("All fields are required", "danger")
         elif password != confirm:
             flash("Passwords do not match", "danger")
         elif len(password) < 6:
             flash("Password must be at least 6 characters", "danger")
         else:
-            user = User(username=username, role="admin", must_change_password=False)
+            user = User(
+                username=username,
+                full_name=full_name,
+                role="admin",
+                must_change_password=False,
+            )
             user.set_password(password)
             db.session.add(user)
             db.session.flush()
@@ -654,8 +664,8 @@ def company():
             logo.save(logo_path)
             Settings.set("logo", "logo.png")
 
-        flash("Settings saved successfully", "success")
-        return redirect(url_for("settings"))
+        flash("Company settings saved successfully", "success")
+        return redirect(url_for("company"))
 
     company_name = Settings.get("company_name", "")
     arn_number = Settings.get("arn_number", "")
@@ -664,6 +674,7 @@ def company():
     pan = Settings.get("pan", "")
     place_of_supply = Settings.get("place_of_supply", "")
     state_code = Settings.get("state_code", "")
+    logo = Settings.get("logo", "")
 
     return render_template(
         "company.html",
@@ -674,7 +685,21 @@ def company():
         pan=pan,
         place_of_supply=place_of_supply,
         state_code=state_code,
+        logo=logo,
     )
+
+
+@app.route("/delete-logo")
+@login_required
+def delete_logo():
+    logo_filename = Settings.get("logo", "")
+    if logo_filename:
+        logo_path = os.path.join(app.config["LOGO_FOLDER"], logo_filename)
+        if os.path.exists(logo_path):
+            os.remove(logo_path)
+        Settings.set("logo", "")
+    flash("Logo deleted successfully", "success")
+    return redirect(url_for("company"))
 
 
 @app.route("/users", methods=["GET", "POST"])
@@ -686,20 +711,26 @@ def manage_users():
         action = request.form.get("action")
 
         if action == "create":
+            full_name = request.form.get("full_name", "").strip()
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "")
             role = request.form.get("role", "staff")
 
-            if not username or not password:
-                flash("Username and password required", "danger")
+            if not full_name or not username or not password:
+                flash("Full name, username and password required", "danger")
             elif User.query.filter_by(username=username).first():
                 flash("Username already exists", "danger")
             else:
-                user = User(username=username, role=role, must_change_password=True)
+                user = User(
+                    username=username,
+                    full_name=full_name,
+                    role=role,
+                    must_change_password=True,
+                )
                 user.set_password(password)
                 db.session.add(user)
                 db.session.commit()
-                flash(f"User {username} created", "success")
+                flash(f"User {full_name} created", "success")
 
         elif action == "delete":
             user_id = request.form.get("user_id")
@@ -727,12 +758,6 @@ def manage_users():
 
     users = User.query.all()
     return render_template("users.html", users=users, display_codes=display_codes)
-
-
-@app.route("/settings")
-@admin_required
-def settings():
-    return render_template("settings.html")
 
 
 @app.route("/dashboard")
@@ -1486,6 +1511,7 @@ def manage_invoices():
     search_query = search
     tax_type_filter = request.args.get("tax_type", "")
     party_filter = request.args.get("party", "")
+    status_filter = request.args.get("status", "")
 
     query = Invoice.query.join(Party)
 
@@ -1506,6 +1532,10 @@ def manage_invoices():
         query = query.filter(Invoice.tax_type == tax_type_filter)
     if party_filter:
         query = query.filter(Invoice.party_id == int(party_filter))
+    if status_filter == "pending":
+        query = query.filter(Invoice.invoice_no == None)
+    elif status_filter == "completed":
+        query = query.filter(Invoice.invoice_no != None)
 
     sort_column = Invoice.invoice_no
     if sort_by == "date":
@@ -1541,6 +1571,7 @@ def manage_invoices():
         sort_dir=sort_dir,
         tax_type_filter=tax_type_filter,
         party_filter=party_filter,
+        status_filter=status_filter,
         pending_count=pending_count,
     )
 
@@ -1742,10 +1773,11 @@ def batch_export():
         f"invoices_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
     )
 
+    exported_count = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for invoice_id in invoice_ids:
             invoice = Invoice.query.get(invoice_id)
-            if not invoice or not invoice.invoice_no:
+            if not invoice or not invoice.invoice_no or not invoice.locked:
                 continue
 
             html_content = render_template(
@@ -1770,6 +1802,11 @@ def batch_export():
             zip_filename = os.path.basename(pdf_path)
             zip_file.write(pdf_path, zip_filename)
             os.remove(pdf_path)
+            exported_count += 1
+
+    if exported_count == 0:
+        flash("No locked invoices with invoice numbers to export", "warning")
+        return redirect(url_for("manage_invoices"))
 
     return send_file(zip_path, as_attachment=True, download_name=f"invoices_batch.zip")
 
@@ -1799,25 +1836,37 @@ def batch_export_excel():
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center")
 
-    for idx, invoice_id in enumerate(invoice_ids, 2):
+    row_idx = 2
+    exported_count = 0
+    for invoice_id in invoice_ids:
         invoice = Invoice.query.get(invoice_id)
-        if not invoice:
+        if not invoice or not invoice.invoice_no or not invoice.locked:
             continue
 
         gst_data = invoice.calculate_gst()
         taxable = gst_data.get("subtotal", 0) or 0
 
         ws.cell(
-            row=idx,
+            row=row_idx,
             column=1,
             value=invoice.invoice_date.strftime("%d-%m-%Y")
             if invoice.invoice_date
             else "",
         )
-        ws.cell(row=idx, column=2, value=invoice.invoice_no or "Pending")
-        ws.cell(row=idx, column=3, value=invoice.party.gstin if invoice.party else "")
-        ws.cell(row=idx, column=4, value=invoice.party.name if invoice.party else "")
-        ws.cell(row=idx, column=5, value=taxable)
+        ws.cell(row=row_idx, column=2, value=invoice.invoice_no)
+        ws.cell(
+            row=row_idx, column=3, value=invoice.party.gstin if invoice.party else ""
+        )
+        ws.cell(
+            row=row_idx, column=4, value=invoice.party.name if invoice.party else ""
+        )
+        ws.cell(row=row_idx, column=5, value=taxable)
+        row_idx += 1
+        exported_count += 1
+
+    if exported_count == 0:
+        flash("No locked invoices with invoice numbers to export", "warning")
+        return redirect(url_for("manage_invoices"))
 
     for col in range(1, 6):
         ws.column_dimensions[chr(64 + col)].width = 18
@@ -2171,14 +2220,25 @@ def batch_lock():
         flash("No invoices selected", "warning")
         return redirect(url_for("manage_invoices"))
     locked_count = 0
+    skipped_count = 0
     for inv_id in invoice_ids:
         inv = Invoice.query.get(inv_id)
         if inv:
-            inv.locked = True
-            locked_count += 1
+            if inv.locked:
+                skipped_count += 1
+            elif not inv.invoice_no:
+                skipped_count += 1
+            else:
+                inv.locked = True
+                locked_count += 1
     db.session.commit()
     if locked_count > 0:
         flash(f"Successfully locked {locked_count} invoices", "success")
+    if skipped_count > 0:
+        flash(
+            f"Skipped {skipped_count} invoice(s) - already locked or without invoice number",
+            "info",
+        )
     return redirect(url_for("manage_invoices"))
 
 
@@ -2190,14 +2250,20 @@ def batch_unlock():
         flash("No invoices selected", "warning")
         return redirect(url_for("manage_invoices"))
     unlocked_count = 0
+    skipped_count = 0
     for inv_id in invoice_ids:
         inv = Invoice.query.get(inv_id)
         if inv:
-            inv.locked = False
-            unlocked_count += 1
+            if not inv.locked:
+                skipped_count += 1
+            else:
+                inv.locked = False
+                unlocked_count += 1
     db.session.commit()
     if unlocked_count > 0:
         flash(f"Successfully unlocked {unlocked_count} invoices", "success")
+    if skipped_count > 0:
+        flash(f"Skipped {skipped_count} invoice(s) - already unlocked", "info")
     return redirect(url_for("manage_invoices"))
 
 
@@ -2339,6 +2405,9 @@ def edit_invoice(invoice_id):
 
 
 def generate_credit_note_numbers():
+    current_fy = get_fiscal_year()
+    fy_prefix = current_fy.replace("-", "")
+
     pending_credit_notes = (
         CreditNote.query.filter(CreditNote.credit_note_no == None)
         .order_by(CreditNote.credit_note_date)
@@ -2350,6 +2419,7 @@ def generate_credit_note_numbers():
 
     last_credit_note = (
         CreditNote.query.filter(CreditNote.credit_note_no != None)
+        .filter(CreditNote.credit_note_no.like(f"CRN/{fy_prefix}%"))
         .order_by(CreditNote.credit_note_no.desc())
         .first()
     )
@@ -2357,9 +2427,9 @@ def generate_credit_note_numbers():
     if last_credit_note:
         last_no = last_credit_note.credit_note_no
         parts = last_no.split("/")
-        if len(parts) == 2:
+        if len(parts) == 3:
             try:
-                seq = int(parts[1])
+                seq = int(parts[2])
             except:
                 seq = 0
         else:
@@ -2369,10 +2439,8 @@ def generate_credit_note_numbers():
 
     for credit_note in pending_credit_notes:
         seq += 1
-        fy = get_fiscal_year().replace("-", "")
-        credit_note_no = f"CRN/{fy}/{str(seq).zfill(3)}"
+        credit_note_no = f"CRN/{fy_prefix}/{str(seq).zfill(3)}"
         credit_note.credit_note_no = credit_note_no
-        credit_note.locked = True
 
         total = credit_note.calculate_gst()["total"]
         credit_note.total_in_words = number_to_words(total)
@@ -2391,9 +2459,10 @@ def manage_credit_notes():
     selected_year = year
     selected_month = month
     search_query = search
-    invoice_filter = request.args.get("invoice", "")
+    invoice_search = request.args.get("invoice_search", "").strip()
+    status_filter = request.args.get("status", "")
 
-    query = CreditNote.query.join(Invoice)
+    query = CreditNote.query.join(Invoice).join(Party)
 
     if year:
         query = query.filter(
@@ -2407,14 +2476,22 @@ def manage_credit_notes():
         query = query.filter(
             db.or_(
                 CreditNote.credit_note_no.ilike(f"%{search}%"),
-                Invoice.invoice_no.ilike(f"%{search}%"),
-                Invoice.reference_serial_no.ilike(f"%{search}%"),
-                Party.gstin.ilike(f"%{search}%"),
-                Party.name.ilike(f"%{search}%"),
+                CreditNote.party_name.ilike(f"%{search}%"),
+                CreditNote.party_gstin.ilike(f"%{search}%"),
             )
         )
-    if invoice_filter:
-        query = query.filter(CreditNote.invoice_id == int(invoice_filter))
+    if invoice_search:
+        query = query.filter(
+            db.or_(
+                Invoice.invoice_no.ilike(f"%{invoice_search}%"),
+                Invoice.reference_serial_no.ilike(f"%{invoice_search}%"),
+                Party.name.ilike(f"%{invoice_search}%"),
+            )
+        )
+    if status_filter == "pending":
+        query = query.filter(CreditNote.credit_note_no == None)
+    elif status_filter == "completed":
+        query = query.filter(CreditNote.credit_note_no != None)
 
     sort_column = CreditNote.credit_note_no
     if sort_by == "date":
@@ -2430,7 +2507,6 @@ def manage_credit_notes():
         query = query.order_by(sort_column.asc())
 
     credit_notes = query.all()
-    invoices = Invoice.query.all()
     pending_count = CreditNote.query.filter(CreditNote.credit_note_no == None).count()
 
     all_credit_notes = CreditNote.query.all()
@@ -2443,14 +2519,14 @@ def manage_credit_notes():
     return render_template(
         "credit_note_management.html",
         credit_notes=credit_notes,
-        invoices=invoices,
         selected_year=selected_year,
         selected_month=selected_month,
         search_query=search_query,
         years=years,
         sort_by=sort_by,
         sort_dir=sort_dir,
-        invoice_filter=invoice_filter,
+        invoice_search=invoice_search,
+        status_filter=status_filter,
         pending_count=pending_count,
     )
 
@@ -2587,7 +2663,7 @@ def batch_delete_credit_notes():
     skipped_count = 0
     for cn_id in credit_note_ids:
         cn = CreditNote.query.get(cn_id)
-        if cn and not cn.credit_note_no:
+        if cn and not cn.locked:
             db.session.delete(cn)
             deleted_count += 1
         else:
@@ -2608,27 +2684,25 @@ def batch_lock_credit_notes():
         flash("No credit notes selected", "warning")
         return redirect(url_for("manage_credit_notes"))
     locked_count = 0
-    already_locked = 0
+    skipped_count = 0
     for cn_id in credit_note_ids:
         cn = CreditNote.query.get(cn_id)
         if cn:
-            if cn.credit_note_no:
-                if not cn.locked:
-                    cn.locked = True
-                    already_locked += 1
+            if cn.locked:
+                skipped_count += 1
+            elif not cn.credit_note_no:
+                skipped_count += 1
             else:
-                seq = cn.id
-                fy = get_fiscal_year().replace("-", "")
-                cn.credit_note_no = f"CRN/{fy}/{str(seq).zfill(3)}"
                 cn.locked = True
-                total = cn.calculate_gst()["total"]
-                cn.total_in_words = number_to_words(total)
                 locked_count += 1
     db.session.commit()
     if locked_count > 0:
-        flash(f"Locked {locked_count} credit note(s)", "success")
-    if already_locked > 0:
-        flash(f"{already_locked} credit note(s) already locked", "warning")
+        flash(f"Successfully locked {locked_count} credit notes", "success")
+    if skipped_count > 0:
+        flash(
+            f"Skipped {skipped_count} credit note(s) - already locked or without credit note number",
+            "info",
+        )
     return redirect(url_for("manage_credit_notes"))
 
 
@@ -2640,14 +2714,20 @@ def batch_unlock_credit_notes():
         flash("No credit notes selected", "warning")
         return redirect(url_for("manage_credit_notes"))
     unlocked_count = 0
+    skipped_count = 0
     for cn_id in credit_note_ids:
         cn = CreditNote.query.get(cn_id)
-        if cn and cn.locked:
-            cn.locked = False
-            unlocked_count += 1
+        if cn:
+            if not cn.locked:
+                skipped_count += 1
+            else:
+                cn.locked = False
+                unlocked_count += 1
     db.session.commit()
     if unlocked_count > 0:
-        flash(f"Unlocked {unlocked_count} credit note(s)", "success")
+        flash(f"Successfully unlocked {unlocked_count} credit notes", "success")
+    if skipped_count > 0:
+        flash(f"Skipped {skipped_count} credit note(s) - already unlocked", "info")
     return redirect(url_for("manage_credit_notes"))
 
 

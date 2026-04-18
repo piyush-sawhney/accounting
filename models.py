@@ -150,6 +150,7 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
+    full_name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(64), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="staff")  # admin or staff
     must_change_password = db.Column(db.Boolean, default=True)
