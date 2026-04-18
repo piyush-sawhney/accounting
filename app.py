@@ -19,7 +19,7 @@ from weasyprint import HTML
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
-from models import db, Settings, Party, Invoice, InvoiceItem
+from models import db, Settings, Party, Invoice, InvoiceItem, CreditNote, CreditNoteItem
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "gst-invoice-secret-key-2024"
@@ -398,6 +398,7 @@ def dashboard():
     date_range = request.args.get("date_range", "this_month")
     party_id = request.args.get("party")
     search = request.args.get("search", "").strip()
+    sort_by = request.args.get("sort_by", "revenue")
 
     now = datetime.now()
     current_year = now.year
@@ -449,22 +450,59 @@ def dashboard():
     invoice_count = len(invoices)
     unlocked_count = sum(1 for inv in invoices if not inv.locked)
 
-    # Last month dates
+    # Last month dates (previous month)
     last_month_start = (period_start - timedelta(days=1)).replace(day=1)
     last_month_end = period_start - timedelta(days=1)
     last_month_invoices = Invoice.query.filter(
         Invoice.invoice_date >= last_month_start, Invoice.invoice_date <= last_month_end
     ).all()
 
-    # Last 3 months dates
-    last_3m_start = now.replace(day=1) - timedelta(days=90)
-    last_3m_invoices = Invoice.query.filter(Invoice.invoice_date >= last_3m_start).all()
+    # Previous to previous month (2 months ago)
+    two_months_back_start = (last_month_start - timedelta(days=1)).replace(day=1)
+    two_months_back_end = last_month_start - timedelta(days=1)
+    two_months_back_invoices = Invoice.query.filter(
+        Invoice.invoice_date >= two_months_back_start,
+        Invoice.invoice_date <= two_months_back_end,
+    ).all()
+
+    # Last 3 months dates (3 complete months before this month)
+    # Calculate: 3 months back = January 2026 if now=April 2026
+    if current_month > 3:
+        last_3m_start = datetime(current_year, current_month - 3, 1)
+    else:
+        last_3m_start = datetime(current_year - 1, current_month + 9, 1)
+    last_3m_end = last_month_end  # End at last month
+    last_3m_invoices = Invoice.query.filter(
+        Invoice.invoice_date >= last_3m_start, Invoice.invoice_date <= last_3m_end
+    ).all()
+
+    # This month last year
+    this_month_last_year_start = datetime(current_year - 1, current_month, 1)
+    if current_month == 12:
+        this_month_last_year_end = datetime(current_year - 1, 12, 31)
+    else:
+        this_month_last_year_end = datetime(
+            current_year - 1, current_month + 1, 1
+        ) - timedelta(days=1)
+    this_month_last_year_invoices = Invoice.query.filter(
+        Invoice.invoice_date >= this_month_last_year_start,
+        Invoice.invoice_date <= this_month_last_year_end,
+    ).all()
+    this_month_last_year_label = f"{get_month_name(current_month)} {current_year - 1}"
 
     # Party growth data calculation
     all_parties = Party.query.all()
     party_growth_data = []
 
     max_revenue = 0
+    trend_months = []
+    for i in range(5, -1, -1):
+        trg_month = (now.month - i + 12) % 12 + 1
+        trg_year = now.year if (now.month - i) > 0 else now.year - 1
+        if now.month - i <= 0:
+            trg_year = now.year - 1
+        month_name = get_month_name(trg_month)[:3]
+        trend_months.append(f"{month_name}")
 
     for party in all_parties:
         # This month revenue
@@ -472,10 +510,17 @@ def dashboard():
             Invoice.party_id == party.id,
             Invoice.invoice_date >= period_start,
             Invoice.invoice_date <= period_end,
-            Invoice.is_rcm == False,
         ).all()
         this_month_rev = sum(
             inv.calculate_gst().get("subtotal", 0) or 0 for inv in this_month_invs
+        )
+
+        # This month last year
+        this_m_last_yr_invs = [
+            inv for inv in this_month_last_year_invoices if inv.party_id == party.id
+        ]
+        this_month_last_year_rev = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in this_m_last_yr_invs
         )
 
         # Last month revenue
@@ -483,18 +528,47 @@ def dashboard():
             Invoice.party_id == party.id,
             Invoice.invoice_date >= last_month_start,
             Invoice.invoice_date <= last_month_end,
-            Invoice.is_rcm == False,
         ).all()
         last_month_rev = sum(
             inv.calculate_gst().get("subtotal", 0) or 0 for inv in last_m_invs
         )
 
+        # Previous to previous month (2 months ago)
+        two_m_invs = Invoice.query.filter(
+            Invoice.party_id == party.id,
+            Invoice.invoice_date >= two_months_back_start,
+            Invoice.invoice_date <= two_months_back_end,
+        ).all()
+        two_months_ago_rev = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in two_m_invs
+        )
+
+        # Three months ago
+        three_months_start = (two_months_back_start - timedelta(days=1)).replace(day=1)
+        three_months_end = two_months_back_start - timedelta(days=1)
+        three_m_invs = Invoice.query.filter(
+            Invoice.party_id == party.id,
+            Invoice.invoice_date >= three_months_start,
+            Invoice.invoice_date <= three_months_end,
+        ).all()
+        three_months_ago_rev = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in three_m_invs
+        )
+
+        # Four months ago
+        four_months_start = (three_months_start - timedelta(days=1)).replace(day=1)
+        four_months_end = three_months_start - timedelta(days=1)
+        four_m_invs = Invoice.query.filter(
+            Invoice.party_id == party.id,
+            Invoice.invoice_date >= four_months_start,
+            Invoice.invoice_date <= four_months_end,
+        ).all()
+        four_months_ago_rev = sum(
+            inv.calculate_gst().get("subtotal", 0) or 0 for inv in four_m_invs
+        )
+
         # Last 3 months revenue
-        last_3m_invs = [
-            inv
-            for inv in last_3m_invoices
-            if inv.party_id == party.id and not inv.is_rcm
-        ]
+        last_3m_invs = [inv for inv in last_3m_invoices if inv.party_id == party.id]
         last_3m_rev = sum(
             inv.calculate_gst().get("subtotal", 0) or 0 for inv in last_3m_invs
         )
@@ -512,7 +586,6 @@ def dashboard():
                     Invoice.party_id == party.id,
                     db.extract("month", Invoice.invoice_date) == trg_month,
                     db.extract("year", Invoice.invoice_date) == trg_year,
-                    Invoice.is_rcm == False,
                 ).all()
             )
             trend_data.append(month_rev)
@@ -526,22 +599,65 @@ def dashboard():
         if this_month_rev > max_revenue:
             max_revenue = this_month_rev
 
-        if this_month_rev > 0 or last_month_rev > 0 or last_3m_rev > 0:
+        if (
+            this_month_rev > 0
+            or this_month_last_year_rev > 0
+            or last_month_rev > 0
+            or two_months_ago_rev > 0
+            or three_months_ago_rev > 0
+            or four_months_ago_rev > 0
+            or last_3m_rev > 0
+        ):
             party_growth_data.append(
                 {
                     "name": party.name,
                     "this_month": this_month_rev,
+                    "this_month_last_year": this_month_last_year_rev,
                     "last_month": last_month_rev,
+                    "two_months_ago": two_months_ago_rev,
+                    "three_months_ago": three_months_ago_rev,
+                    "four_months_ago": four_months_ago_rev,
                     "last_3m": last_3m_rev,
                     "growth": growth_pct,
                     "trend": trend_data,
                 }
             )
 
-    # Sort by revenue (default)
-    party_growth_data = sorted(
-        party_growth_data, key=lambda x: x["this_month"], reverse=True
-    )
+    # Sort by revenue (default) or by name
+    if sort_by == "name":
+        party_growth_data = sorted(
+            party_growth_data, key=lambda x: x["name"], reverse=False
+        )
+    else:
+        party_growth_data = sorted(
+            party_growth_data, key=lambda x: x["this_month"], reverse=True
+        )
+
+    # Show ALL parties (not just those with recent invoices)
+    all_parties = Party.query.all()
+    party_dict = {p.name: p for p in all_parties}
+    for party in all_parties:
+        party_name = party.name
+        existing = next((x for x in party_growth_data if x["name"] == party_name), None)
+        if not existing:
+            party_growth_data.append(
+                {
+                    "name": party.name,
+                    "this_month": 0,
+                    "this_month_last_year": 0,
+                    "last_month": 0,
+                    "two_months_ago": 0,
+                    "three_months_ago": 0,
+                    "four_months_ago": 0,
+                    "last_3m": 0,
+                    "growth": 0,
+                    "trend": [0, 0, 0, 0, 0, 0],
+                }
+            )
+    if sort_by == "name":
+        party_growth_data = sorted(
+            party_growth_data, key=lambda x: x["name"], reverse=False
+        )
 
     # Overall revenue change calculation
     total_last_month = sum(p["last_month"] for p in party_growth_data)
@@ -652,6 +768,10 @@ def dashboard():
         company_name=company_name,
         party_growth_data=party_growth_data,
         max_revenue=max_revenue,
+        sort_by=sort_by,
+        trend_months=trend_months,
+        current_year=current_year,
+        this_month_last_year_label=this_month_last_year_label,
     )
 
     total_revenue = sum(inv.calculate_gst().get("subtotal", 0) or 0 for inv in invoices)
@@ -1008,7 +1128,7 @@ def manage_invoices():
     year = request.args.get("year")
     month = request.args.get("month")
     search = request.args.get("search", "").strip()
-    sort_by = request.args.get("sort_by", "invoice_no")
+    sort_by = request.args.get("sort_by", "date")
     sort_dir = request.args.get("sort_dir", "desc")
     selected_year = year
     selected_month = month
@@ -1738,15 +1858,21 @@ def batch_delete():
         flash("No invoices selected", "warning")
         return redirect(url_for("manage_invoices"))
     deleted_count = 0
+    skipped_count = 0
     for inv_id in invoice_ids:
         inv = Invoice.query.get(inv_id)
         if inv and not inv.locked:
+            if inv.credit_notes:
+                skipped_count += 1
+                continue
             db.session.delete(inv)
             deleted_count += 1
     db.session.commit()
     if deleted_count > 0:
         flash(f"Successfully deleted {deleted_count} invoices", "success")
-    else:
+    if skipped_count > 0:
+        flash(f"Skipped {skipped_count} invoice(s) with credit notes", "warning")
+    if deleted_count == 0 and skipped_count == 0:
         flash("No invoices deleted (some may be locked)", "warning")
     return redirect(url_for("manage_invoices"))
 
@@ -1859,6 +1985,381 @@ def edit_invoice(invoice_id):
         return redirect(url_for("manage_invoices"))
 
     return render_template("edit_invoice.html", invoice=invoice, parties=parties)
+
+
+def generate_credit_note_numbers():
+    pending_credit_notes = (
+        CreditNote.query.filter(CreditNote.credit_note_no == None)
+        .order_by(CreditNote.credit_note_date)
+        .all()
+    )
+
+    if not pending_credit_notes:
+        return 0
+
+    last_credit_note = (
+        CreditNote.query.filter(CreditNote.credit_note_no != None)
+        .order_by(CreditNote.credit_note_no.desc())
+        .first()
+    )
+
+    if last_credit_note:
+        last_no = last_credit_note.credit_note_no
+        parts = last_no.split("/")
+        if len(parts) == 2:
+            try:
+                seq = int(parts[1])
+            except:
+                seq = 0
+        else:
+            seq = 0
+    else:
+        seq = 0
+
+    for credit_note in pending_credit_notes:
+        seq += 1
+        fy = get_fiscal_year().replace("-", "")
+        credit_note_no = f"CRN/{fy}/{str(seq).zfill(3)}"
+        credit_note.credit_note_no = credit_note_no
+        credit_note.locked = True
+
+        total = credit_note.calculate_gst()["total"]
+        credit_note.total_in_words = number_to_words(total)
+
+    db.session.commit()
+    return len(pending_credit_notes)
+
+
+@app.route("/credit-notes")
+def manage_credit_notes():
+    year = request.args.get("year")
+    month = request.args.get("month")
+    search = request.args.get("search", "").strip()
+    sort_by = request.args.get("sort_by", "credit_note_no")
+    sort_dir = request.args.get("sort_dir", "desc")
+    selected_year = year
+    selected_month = month
+    search_query = search
+    invoice_filter = request.args.get("invoice", "")
+
+    query = CreditNote.query.join(Invoice)
+
+    if year:
+        query = query.filter(
+            db.extract("year", CreditNote.credit_note_date) == int(year)
+        )
+    if month:
+        query = query.filter(
+            db.extract("month", CreditNote.credit_note_date) == int(month)
+        )
+    if search:
+        query = query.filter(
+            db.or_(
+                CreditNote.credit_note_no.ilike(f"%{search}%"),
+                Invoice.invoice_no.ilike(f"%{search}%"),
+                Invoice.reference_serial_no.ilike(f"%{search}%"),
+                Party.gstin.ilike(f"%{search}%"),
+                Party.name.ilike(f"%{search}%"),
+            )
+        )
+    if invoice_filter:
+        query = query.filter(CreditNote.invoice_id == int(invoice_filter))
+
+    sort_column = CreditNote.credit_note_no
+    if sort_by == "date":
+        sort_column = CreditNote.credit_note_date
+    elif sort_by == "invoice":
+        sort_column = Invoice.invoice_no
+    elif sort_by == "party":
+        sort_column = Party.name
+
+    if sort_dir == "desc":
+        query = query.order_by(sort_column.desc())
+    else:
+        query = query.order_by(sort_column.asc())
+
+    credit_notes = query.all()
+    invoices = Invoice.query.all()
+    pending_count = CreditNote.query.filter(CreditNote.credit_note_no == None).count()
+
+    all_credit_notes = CreditNote.query.all()
+    years = sorted(
+        set(cn.credit_note_date.year for cn in all_credit_notes if cn.credit_note_date)
+    )
+    if not years:
+        years = [datetime.now().year]
+
+    return render_template(
+        "credit_note_management.html",
+        credit_notes=credit_notes,
+        invoices=invoices,
+        selected_year=selected_year,
+        selected_month=selected_month,
+        search_query=search_query,
+        years=years,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        invoice_filter=invoice_filter,
+        pending_count=pending_count,
+    )
+
+
+@app.route("/credit-note/create", methods=["GET", "POST"])
+def create_credit_note():
+    existing_invoice_ids = [cn.invoice_id for cn in CreditNote.query.all()]
+    if existing_invoice_ids:
+        invoices = (
+            Invoice.query.filter(Invoice.locked == True)
+            .filter(~Invoice.id.in_(existing_invoice_ids))
+            .order_by(Invoice.invoice_date.desc())
+            .all()
+        )
+    else:
+        invoices = (
+            Invoice.query.filter(Invoice.locked == True)
+            .order_by(Invoice.invoice_date.desc())
+            .all()
+        )
+
+    if request.method == "POST":
+        invoice_id = request.form.get("invoice_id")
+        credit_note_date = datetime.strptime(
+            request.form.get("credit_note_date"), "%Y-%m-%d"
+        ).date()
+        reason = request.form.get("reason")
+        tax_type = request.form.get("tax_type")
+        place_of_supply = request.form.get("place_of_supply")
+
+        if not invoice_id:
+            flash("Invoice selection is required.", "danger")
+            return redirect(url_for("create_credit_note"))
+
+        if not reason:
+            flash("Reason is required.", "danger")
+            return redirect(url_for("create_credit_note"))
+
+        existing_credit_note = CreditNote.query.filter_by(invoice_id=invoice_id).first()
+        if existing_credit_note:
+            flash(f"Credit note already exists for this invoice.", "warning")
+            return redirect(url_for("create_credit_note"))
+
+        invoice = Invoice.query.get(invoice_id)
+
+        credit_note = CreditNote(
+            credit_note_date=credit_note_date,
+            invoice_id=invoice_id,
+            reason=reason,
+            tax_type=tax_type,
+            place_of_supply=place_of_supply,
+        )
+
+        credit_note.party_name = invoice.party_name
+        credit_note.party_address = invoice.party_address
+        credit_note.party_gstin = invoice.party_gstin
+        credit_note.party_pan = invoice.party_pan
+        credit_note.party_state = invoice.party_state
+        credit_note.party_state_code = invoice.party_state_code
+
+        db.session.add(credit_note)
+        db.session.flush()
+
+        items_desc = request.form.getlist("item_description[]")
+        items_taxable = request.form.getlist("item_taxable_value[]")
+        items_cgst_rate = request.form.getlist("item_cgst_rate[]")
+        items_sgst_rate = request.form.getlist("item_sgst_rate[]")
+        items_igst_rate = request.form.getlist("item_igst_rate[]")
+
+        for i in range(len(items_desc)):
+            if items_desc[i].strip():
+                taxable = float(items_taxable[i]) if i < len(items_taxable) else 0
+                cgst_rate = float(items_cgst_rate[i]) if i < len(items_cgst_rate) else 0
+                sgst_rate = float(items_sgst_rate[i]) if i < len(items_sgst_rate) else 0
+                igst_rate = float(items_igst_rate[i]) if i < len(items_igst_rate) else 0
+
+                cgst_amt = taxable * cgst_rate / 100 if tax_type == "INTRA" else 0
+                sgst_amt = taxable * sgst_rate / 100 if tax_type == "INTRA" else 0
+                igst_amt = taxable * igst_rate / 100 if tax_type == "INTER" else 0
+
+                item = CreditNoteItem(
+                    credit_note_id=credit_note.id,
+                    description=items_desc[i],
+                    taxable_value=taxable,
+                    cgst_rate=cgst_rate,
+                    cgst_amt=cgst_amt,
+                    sgst_rate=sgst_rate,
+                    sgst_amt=sgst_amt,
+                    igst_rate=igst_rate,
+                    igst_amt=igst_amt,
+                )
+                db.session.add(item)
+
+        db.session.commit()
+        flash("Credit note created successfully", "success")
+        return redirect(url_for("manage_credit_notes"))
+
+    invoice_id = request.args.get("invoice_id")
+    selected_invoice = None
+    invoice_items = []
+    if invoice_id:
+        selected_invoice = Invoice.query.get(invoice_id)
+        if selected_invoice:
+            invoice_items = selected_invoice.items
+
+    return render_template(
+        "create_credit_note.html",
+        invoices=invoices,
+        selected_invoice=selected_invoice,
+        invoice_items=invoice_items,
+    )
+
+
+@app.route("/credit-note/delete/<int:credit_note_id>")
+def delete_credit_note(credit_note_id):
+    credit_note = CreditNote.query.get_or_404(credit_note_id)
+    if credit_note.credit_note_no:
+        flash("Locked credit notes cannot be deleted", "danger")
+        return redirect(url_for("manage_credit_notes"))
+    db.session.delete(credit_note)
+    db.session.commit()
+    flash("Credit note deleted successfully", "success")
+    return redirect(url_for("manage_credit_notes"))
+
+
+@app.route("/credit-note/batch-delete", methods=["POST"])
+def batch_delete_credit_notes():
+    ids_raw = request.form.get("credit_note_ids", "")
+    credit_note_ids = ids_raw.split(",") if ids_raw else []
+    if not credit_note_ids or credit_note_ids == [""]:
+        flash("No credit notes selected", "warning")
+        return redirect(url_for("manage_credit_notes"))
+    deleted_count = 0
+    skipped_count = 0
+    for cn_id in credit_note_ids:
+        cn = CreditNote.query.get(cn_id)
+        if cn and not cn.credit_note_no:
+            db.session.delete(cn)
+            deleted_count += 1
+        else:
+            skipped_count += 1
+    db.session.commit()
+    if deleted_count > 0:
+        flash(f"Successfully deleted {deleted_count} credit notes", "success")
+    if skipped_count > 0:
+        flash(f"Skipped {skipped_count} locked credit note(s)", "warning")
+    return redirect(url_for("manage_credit_notes"))
+
+
+@app.route("/credit-note/batch-lock", methods=["POST"])
+def batch_lock_credit_notes():
+    ids_raw = request.form.get("credit_note_ids", "")
+    credit_note_ids = ids_raw.split(",") if ids_raw else []
+    if not credit_note_ids or credit_note_ids == [""]:
+        flash("No credit notes selected", "warning")
+        return redirect(url_for("manage_credit_notes"))
+    locked_count = 0
+    already_locked = 0
+    for cn_id in credit_note_ids:
+        cn = CreditNote.query.get(cn_id)
+        if cn:
+            if cn.credit_note_no:
+                if not cn.locked:
+                    cn.locked = True
+                    already_locked += 1
+            else:
+                seq = cn.id
+                fy = get_fiscal_year().replace("-", "")
+                cn.credit_note_no = f"CRN/{fy}/{str(seq).zfill(3)}"
+                cn.locked = True
+                total = cn.calculate_gst()["total"]
+                cn.total_in_words = number_to_words(total)
+                locked_count += 1
+    db.session.commit()
+    if locked_count > 0:
+        flash(f"Locked {locked_count} credit note(s)", "success")
+    if already_locked > 0:
+        flash(f"{already_locked} credit note(s) already locked", "warning")
+    return redirect(url_for("manage_credit_notes"))
+
+
+@app.route("/credit-note/batch-unlock", methods=["POST"])
+def batch_unlock_credit_notes():
+    ids_raw = request.form.get("credit_note_ids", "")
+    credit_note_ids = ids_raw.split(",") if ids_raw else []
+    if not credit_note_ids or credit_note_ids == [""]:
+        flash("No credit notes selected", "warning")
+        return redirect(url_for("manage_credit_notes"))
+    unlocked_count = 0
+    for cn_id in credit_note_ids:
+        cn = CreditNote.query.get(cn_id)
+        if cn and cn.locked:
+            cn.locked = False
+            unlocked_count += 1
+    db.session.commit()
+    if unlocked_count > 0:
+        flash(f"Unlocked {unlocked_count} credit note(s)", "success")
+    return redirect(url_for("manage_credit_notes"))
+
+
+@app.route("/credit-note/preview/<int:credit_note_id>")
+def preview_credit_note(credit_note_id):
+    credit_note = CreditNote.query.get_or_404(credit_note_id)
+    return render_template("credit_note_preview.html", credit_note=credit_note)
+
+
+@app.route("/credit-note/pdf/<int:credit_note_id>")
+def generate_credit_note_pdf(credit_note_id):
+    credit_note = CreditNote.query.get_or_404(credit_note_id)
+
+    html_content = render_template(
+        "credit_note_pdf_template.html",
+        credit_note=credit_note,
+        settings={
+            "company_name": Settings.get("company_name", ""),
+            "address": Settings.get("address", ""),
+            "gstin": Settings.get("gstin", ""),
+            "pan": Settings.get("pan", ""),
+            "logo": Settings.get("logo", ""),
+            "place_of_supply": Settings.get("place_of_supply", ""),
+            "state_code": Settings.get("state_code", ""),
+        },
+    )
+
+    fy_short = get_fy_short()
+    month_name = (
+        get_month_name(credit_note.credit_note_date.month)
+        if credit_note.credit_note_date
+        else "Unknown"
+    )
+    party_name = sanitize_filename(credit_note.party_name or "Unknown")
+    credit_note_no = sanitize_filename(
+        credit_note.credit_note_no or f"credit_note_{credit_note.id}"
+    )
+    pdf_path = os.path.join(
+        app.config["EXPORT_FOLDER"],
+        fy_short,
+        month_name,
+        f"CN_{party_name}_{credit_note_no}.pdf",
+    )
+    os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
+    HTML(string=html_content).write_pdf(pdf_path)
+
+    download_name = (
+        f"{credit_note.credit_note_no}.pdf"
+        if credit_note.credit_note_no
+        else f"credit_note_{credit_note_id}.pdf"
+    )
+    return send_file(pdf_path, as_attachment=True, download_name=download_name)
+
+
+@app.route("/credit-note/generate-numbers", methods=["POST"])
+def generate_credit_note_numbers_route():
+    count = generate_credit_note_numbers()
+    if count > 0:
+        flash(f"Generated credit note numbers for {count} credit notes", "success")
+    else:
+        flash("No pending credit notes to generate numbers for", "warning")
+    return redirect(url_for("manage_credit_notes"))
 
 
 @app.template_filter("currency")

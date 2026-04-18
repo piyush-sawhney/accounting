@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Credit Note {{ credit_note.credit_note_no or 'Pending' }} - KNAPS Invoice Management Software{% endblock %}
+
+{% block content %}
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3 text-dark">
+                <i class="bi bi-credit-card me-2"></i>
+                Credit Note {{ credit_note.credit_note_no or 'Pending' }}
+            </h2>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('manage_credit_notes') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i> Back
+                </a>
+                {% if credit_note.credit_note_no %}
+                <a href="{{ url_for('generate_credit_note_pdf', credit_note_id=credit_note.id) }}" class="btn btn-danger">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Credit Note Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Credit Note Number</label>
+                                <p class="mb-0 fw-bold">
+                                    {% if credit_note.credit_note_no %}
+                                    <span class="badge bg-light text-dark border">{{ credit_note.credit_note_no }}</span>
+                                    {% if credit_note.locked %}
+                                    <i class="bi bi-lock-fill text-muted ms-1"></i>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Credit Note Date</label>
+                                <p class="mb-0">{{ credit_note.credit_note_date.strftime('%d-%m-%Y') }}</p>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Reference Invoice</label>
+                                <p class="mb-0">
+                                    {% if credit_note.invoice %}
+                                    <span class="badge bg-info text-white">{{ credit_note.invoice.invoice_no or 'Pending' }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Reason</label>
+                                <p class="mb-0">{{ credit_note.reason }}</p>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Tax Type</label>
+                                <p class="mb-0">
+                                    {% if credit_note.tax_type == 'INTER' %}
+                                    <span class="badge bg-secondary text-white">Inter-state (IGST)</span>
+                                    {% else %}
+                                    <span class="badge bg-info text-white">Intra-state (CGST+SGST)</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Place of Supply</label>
+                                <p class="mb-0">{{ credit_note.place_of_supply or '-' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Party Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Party Name</label>
+                                <p class="mb-0 fw-bold">{{ credit_note.party_name or '-' }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">GSTIN</label>
+                                <p class="mb-0"><code>{{ credit_note.party_gstin or '-' }}</code></p>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">Address</label>
+                                <p class="mb-0">{{ credit_note.party_address or '-' }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted small">State</label>
+                                <p class="mb-0">{{ credit_note.party_state or '-' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Items</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Description</th>
+                                    <th class="text-end">Taxable Value</th>
+                                    <th class="text-center">Tax Rates</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in credit_note.items %}
+                                <tr>
+                                    <td>{{ item.description }}</td>
+                                    <td class="text-end">₹{{ "%.2f"|format(item.taxable_value) }}</td>
+                                    <td class="text-center">
+                                        {% if credit_note.tax_type == 'INTER' %}
+                                        IGST {{ item.igst_rate }}%
+                                        {% else %}
+                                        CGST {{ item.cgst_rate }}% + SGST {{ item.sgst_rate }}%
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-bold">₹{{ "%.2f"|format(item.taxable_value + item.cgst_amt + item.sgst_amt + item.igst_amt) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Taxable Value</span>
+                            <span class="fw-bold">₹{{ "%.2f"|format(credit_note.calculate_gst().subtotal) }}</span>
+                        </div>
+                        {% if credit_note.tax_type == 'INTER' %}
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">IGST</span>
+                            <span>₹{{ "%.2f"|format(credit_note.calculate_gst().igst) }}</span>
+                        </div>
+                        {% else %}
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">CGST</span>
+                            <span>₹{{ "%.2f"|format(credit_note.calculate_gst().cgst) }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">SGST</span>
+                            <span>₹{{ "%.2f"|format(credit_note.calculate_gst().sgst) }}</span>
+                        </div>
+                        {% endif %}
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <span class="fw-bold">Total</span>
+                            <span class="h5 mb-0">₹{{ "%.2f"|format(credit_note.calculate_gst().total) }}</span>
+                        </div>
+                        {% if credit_note.total_in_words %}
+                        <p class="text-muted small mt-3 mb-0">{{ credit_note.total_in_words }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

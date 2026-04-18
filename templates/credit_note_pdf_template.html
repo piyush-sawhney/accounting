@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #212121; margin: 0; padding: 0; }
+        .invoice-container { max-width: 210mm; margin: 0 auto; background: white; }
+        .header { text-align: center; margin-bottom: 4mm; padding-bottom: 3mm; border-bottom: 2px solid #000000; }
+        .header h1 { font-size: 18pt; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: #000000; margin: 0; }
+        .header .subtitle { font-size: 10pt; color: #757575; margin-top: 2mm; }
+        .info-table { display: table; width: 100%; margin-bottom: 4mm; }
+        .info-cell { display: table-cell; text-align: center; padding: 2mm; border: 1px solid #e0e0e0; background-color: #ffffff; }
+        .label { font-size: 7pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 1mm; }
+        .value { font-size: 9pt; font-weight: 700; }
+        .details-table { display: table; width: 100%; margin-bottom: 4mm; }
+        .details-cell { display: table-cell; padding: 2mm; vertical-align: top; border: 1px solid #e0e0e0; }
+        .section-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #757575; margin-bottom: 2mm; padding-bottom: 1mm; border-bottom: 1px solid #e0e0e0; }
+        .text-main { font-size: 9pt; font-weight: 700; color: #212121; margin-bottom: 2mm; }
+        .text-sub { font-size: 9pt; margin: 2px 0; color: #424242; }
+        .items-table { border-collapse: collapse; width: 100%; font-size: 8pt; }
+        .items-table th { padding: 3mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 8pt; font-weight: 700; text-transform: uppercase; background-color: #f8f9fa; color: #757575; }
+        .items-table td { padding: 2mm; border: 1px solid #e0e0e0; font-size: 9pt; color: #424242; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: 600; }
+        .reason-box { margin-top: 3mm; padding: 2mm; background-color: #f5f5f5; border-radius: 4px; font-size: 9pt; }
+        .signature-section { margin-top: 10mm; }
+        .company-name { font-size: 9pt; color: #212121; }
+        .sig-line { border-top: 1px solid #e0e0e0; width: 30%; margin-bottom: 2mm; margin-top: 10mm; }
+        .sig-label { font-size: 8pt; font-weight: 600; color: #757575; }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header">
+            <h1>Credit Note</h1>
+            <div class="subtitle">Against Tax Invoice</div>
+        </div>
+        
+        <div class="info-table">
+            <div class="info-cell" style="width: 33.33%;">
+                <div class="label">Credit Note Number</div>
+                <div class="value">{{ credit_note.credit_note_no or '-' }}</div>
+            </div>
+            <div class="info-cell" style="width: 33.33%;">
+                <div class="label">Credit Note Date</div>
+                <div class="value">{{ credit_note.credit_note_date.strftime('%d-%m-%Y') }}</div>
+            </div>
+            <div class="info-cell" style="width: 33.33%;">
+                <div class="label">Reason</div>
+                <div class="value">{{ credit_note.reason }}</div>
+            </div>
+        </div>
+        
+        <div class="info-table">
+            <div class="info-cell" style="width: 50%;">
+                <div class="label">Original Invoice Number</div>
+                <div class="value">{{ credit_note.invoice.invoice_no if credit_note.invoice else '-' }}</div>
+            </div>
+            <div class="info-cell" style="width: 50%;">
+                <div class="label">Original Invoice Date</div>
+                <div class="value">{{ credit_note.invoice.invoice_date.strftime('%d-%m-%Y') if credit_note.invoice else '-' }}</div>
+            </div>
+        </div>
+        
+        <div class="details-table">
+            <div class="details-cell" style="width: 48%;">
+                <div class="section-label">Supplier Details</div>
+                <p class="text-main">{{ settings.company_name }}</p>
+                {% if settings.address %}
+                <p class="text-sub">{{ settings.address }}</p>
+                {% endif %}
+                {% if settings.gstin %}
+                <p class="text-sub">GSTIN: {{ settings.gstin }}</p>
+                {% endif %}
+                {% if settings.pan %}
+                <p class="text-sub">PAN: {{ settings.pan }}</p>
+                {% endif %}
+                {% if settings.state_code %}
+                <p class="text-sub">State Code: {{ settings.state_code }}</p>
+                {% endif %}
+            </div>
+            <div class="details-cell" style="width: 4%;"></div>
+            <div class="details-cell" style="width: 48%;">
+                <div class="section-label">Bill To / Recipient</div>
+                <p class="text-main">{{ credit_note.party_name or credit_note.invoice.party.name if credit_note.invoice else '-' }}</p>
+                {% if credit_note.party_address or credit_note.invoice.party.address %}
+                <p class="text-sub">{{ credit_note.party_address or credit_note.invoice.party.address }}</p>
+                {% endif %}
+                {% if credit_note.party_gstin or credit_note.invoice.party.gstin %}
+                <p class="text-sub">GSTIN: {{ credit_note.party_gstin or credit_note.invoice.party.gstin }}</p>
+                {% endif %}
+                {% if credit_note.party_state or credit_note.invoice.party.state %}
+                <p class="text-sub">State: {{ credit_note.party_state or credit_note.invoice.party.state }}</p>
+                {% endif %}
+                {% if credit_note.party_state_code or credit_note.invoice.party.state_code %}
+                <p class="text-sub">State Code: {{ credit_note.party_state_code or credit_note.invoice.party.state_code }}</p>
+                {% endif %}
+                {% if credit_note.place_of_supply %}
+                <p class="text-sub">Place of Supply: {{ credit_note.place_of_supply }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 4%;">No.</th>
+                    <th style="width: 30%;">Description</th>
+                    <th style="width: 10%;">Taxable Value</th>
+                    {% if credit_note.tax_type == 'INTER' %}
+                    <th style="width: 6%;">IGST %</th>
+                    <th style="width: 8%;">IGST Amount</th>
+                    {% else %}
+                    <th style="width: 6%;">CGST %</th>
+                    <th style="width: 8%;">CGST Amount</th>
+                    <th style="width: 6%;">SGST %</th>
+                    <th style="width: 8%;">SGST Amount</th>
+                    {% endif %}
+                    <th style="width: 8%;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in credit_note.items %}
+                <tr>
+                    <td class="text-center">{{ loop.index }}</td>
+                    <td>{{ item.description }}</td>
+                    <td class="text-right">₹{{ "%.2f"|format(item.taxable_value) }}</td>
+                    {% if credit_note.tax_type == 'INTER' %}
+                    <td class="text-right">{{ item.igst_rate }}%</td>
+                    <td class="text-right">₹{{ "%.2f"|format(item.igst_amt) }}</td>
+                    {% else %}
+                    <td class="text-right">{{ item.cgst_rate }}%</td>
+                    <td class="text-right">₹{{ "%.2f"|format(item.cgst_amt) }}</td>
+                    <td class="text-right">{{ item.sgst_rate }}%</td>
+                    <td class="text-right">₹{{ "%.2f"|format(item.sgst_amt) }}</td>
+                    {% endif %}
+                    <td class="text-right fw-bold">₹{{ "%.2f"|format(item.taxable_value + item.igst_amt + item.cgst_amt + item.sgst_amt) }}</td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td colspan="{% if credit_note.tax_type == 'INTER' %}6{% else %}8{% endif %}" style="padding: 0; border: 1px solid #e0e0e0;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                            <tr>
+                                <td style="padding: 1mm 2mm; width: 70%; color: #424242; border-bottom: 1px solid #e0e0e0;">Total Taxable Value</td>
+                                <td style="padding: 1mm 2mm; text-align: right; color: #424242; border-bottom: 1px solid #e0e0e0;">₹{{ "%.2f"|format(credit_note.calculate_gst().subtotal) }}</td>
+                            </tr>
+                            <tr>
+                                {% if credit_note.tax_type == 'INTER' %}
+                                <td style="padding: 1mm 2mm; color: #424242; border-bottom: 1px solid #e0e0e0;">Add: IGST</td>
+                                <td style="padding: 1mm 2mm; text-align: right; color: #424242; border-bottom: 1px solid #e0e0e0;">₹{{ "%.2f"|format(credit_note.calculate_gst().igst) }}</td>
+                                {% else %}
+                                <td style="padding: 1mm 2mm; color: #424242; border-bottom: 1px solid #e0e0e0;">Add: CGST + SGST</td>
+                                <td style="padding: 1mm 2mm; text-align: right; color: #424242; border-bottom: 1px solid #e0e0e0;">₹{{ "%.2f"|format(credit_note.calculate_gst().cgst + credit_note.calculate_gst().sgst) }}</td>
+                                {% endif %}
+                            </tr>
+                            <tr>
+                                <td style="padding: 2mm; font-weight: 700; color: #212121;">Total Credit Note Value</td>
+                                <td style="padding: 2mm; text-align: right; font-weight: 700; color: #212121;">₹{{ "%.2f"|format(credit_note.calculate_gst().total) }}</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        
+        {% if credit_note.reason %}
+        <div class="reason-box">
+            <strong>Reason:</strong> {{ credit_note.reason }}
+        </div>
+        {% endif %}
+        
+        <div class="signature-section">
+            <div class="company-name">For {{ settings.company_name }}</div>
+            <div class="sig-line"></div>
+            <div class="sig-label">Authorised Signatory</div>
+        </div>
+    </div>
+</body>
+</html>
