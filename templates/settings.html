@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Settings - KNAPS Invoice Management Software{% endblock %}
+{% block title %}Settings - GST Invoice Management{% endblock %}
 
 {% block content %}
 <div class="col-md-10 py-4">
@@ -20,64 +20,19 @@
             <h2 class="h3 text-dark"><i class="bi bi-gear me-2"></i>Settings</h2>
         </div>
         
-        <div class="card mb-4">
-            <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
-                <h5 class="mb-0 text-primary">Supplier Details</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST" enctype="multipart/form-data">
-                    <div class="row">
-                         <div class="col-md-12 mb-3">
-                             <label class="form-label text-muted small">Company/Business Name</label>
-                             <input type="text" name="company_name" class="form-control" value="{{ company_name }}" required>
-                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small">Address</label>
-                        <textarea name="address" class="form-control" rows="3">{{ address }}</textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-muted small">GSTIN</label>
-                            <input type="text" name="gstin" class="form-control" value="{{ gstin }}">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-muted small">PAN</label>
-                            <input type="text" name="pan" class="form-control" value="{{ pan }}">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small">Logo (for invoices)</label>
-                        <input type="file" name="logo" class="form-control" accept="image/*">
-                        {% if logo %}
-                        <div class="mt-2 p-2 border rounded d-inline-block">
-                            <img src="{{ url_for('static', filename='logos/' + logo) }}" alt="Logo" style="max-height: 80px;">
-                            <span class="badge bg-light text-success ms-2">Current</span>
-                        </div>
-                        {% endif %}
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-save me-1"></i> Save Settings
-                    </button>
-                </form>
-            </div>
-        </div>
-        
         <div class="card">
-            <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
-                <h5 class="mb-0 text-primary">Invoice Number Format</h5>
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Database Configuration</h5>
             </div>
             <div class="card-body">
-                <p class="mb-2"><strong>Format:</strong> <code>YY-YY/NNN</code></p>
-                <p class="text-muted small">Example: <code>25-26/001</code> means FY 2025-26, invoice #001</p>
-                <hr>
-                <p class="text-muted small"><strong>How it works:</strong></p>
-                <ol class="text-muted small">
-                    <li>Create invoices manually or import from CSV</li>
-                    <li>Invoice numbers are NOT assigned initially</li>
-                    <li>Click "Generate Invoice Numbers" on Dashboard</li>
-                    <li>System assigns numbers in datewise order</li>
-                </ol>
+                <p class="mb-3">Database is configured via <code>DATABASE_URL</code> environment variable.</p>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    To change database settings, update the <code>DATABASE_URL</code> environment variable and restart the server.
+                </div>
+                <p class="text-muted small">
+                    Example: <code>DATABASE_URL="postgresql+psycopg://user:password@host:5432/dbname" python run.py</code>
+                </p>
             </div>
         </div>
     </div>

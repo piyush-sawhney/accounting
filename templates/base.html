@@ -426,6 +426,8 @@
     </style>
 </head>
 <body>
+{% set show_nav = show_nav|default(true) %}
+    {% if show_nav and session.get('user_id') %}
     <nav class="navbar navbar-expand-lg navbar-light fixed-top no-print">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('dashboard') }}">
@@ -449,14 +451,23 @@
                         <a class="nav-link" href="{{ url_for('manage_credit_notes') }}">Credit Notes</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('settings') }}">Settings</a>
+                        <a class="nav-link" href="{{ url_for('company') }}">Company</a>
+                    </li>
+                    {% if session.role == 'admin' %}
+                     <li class="nav-item">
+                         <a class="nav-link" href="{{ url_for('manage_users') }}">Users</a>
+                     </li>
+                     {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Logout ({{ session.username }})</a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
+    {% endif %}
     
-    <div class="container-fluid" style="margin-top: 80px;">
+    <div class="container-fluid" style="margin-top: {{ '80px' if show_nav and session.get('user_id') else '0px' }};">
         <div class="row justify-content-center">
             {% block content %}{% endblock %}
         </div>

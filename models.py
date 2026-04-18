@@ -1,8 +1,22 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+import secrets
+import hashlib
 
 db = SQLAlchemy()
+
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def verify_password(password, hashed):
+    return hash_password(password) == hashed
+
+
+def generate_recovery_code():
+    return secrets.token_hex(4).upper()  # e.g., "A1B2C3D4"
 
 
 class Settings(db.Model):
@@ -103,23 +117,6 @@ class Invoice(db.Model):
         total_sgst = Decimal("0")
         total_igst = Decimal("0")
 
-        # If RCM is active, all standard taxes are 0
-        if self.is_rcm:
-            for item in self.items:
-                subtotal += Decimal(str(item.taxable_value))
-
-            return {
-                "subtotal": float(
-                    subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                ),
-                "cgst": 0.0,
-                "sgst": 0.0,
-                "igst": 0.0,
-                "total": float(
-                    subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                ),
-            }
-
         for item in self.items:
             item_total = Decimal(str(item.taxable_value))
             subtotal += item_total
@@ -146,6 +143,90 @@ class Invoice(db.Model):
                 )
             ),
         }
+
+
+class User(db.Model):
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.String(64), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default="staff")  # admin or staff
+    must_change_password = db.Column(db.Boolean, default=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    def set_password(self, password):
+        self.password_hash = hash_password(password)
+        self.must_change_password = False
+
+    def check_password(self, password):
+        return verify_password(password, self.password_hash)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "role": self.role,
+            "must_change_password": self.must_change_password,
+            "is_active": self.is_active,
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M")
+            if self.created_at
+            else None,
+        }
+
+
+class RecoveryCode(db.Model):
+    __tablename__ = "recovery_codes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(10), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    is_used = db.Column(db.Boolean, default=False)
+    used_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref="recovery_codes")
+
+    def to_dict(self):
+        return {
+            "code": self.code[:4] + "-" + self.code[4:]
+            if len(self.code) > 4
+            else self.code,
+            "is_used": self.is_used,
+            "used_at": self.used_at.strftime("%Y-%m-%d %H:%M")
+            if self.used_at
+            else None,
+            "created_at": self.created_at.strftime("%Y-%m-%d")
+            if self.created_at
+            else None,
+        }
+
+
+class ConfigStore(db.Model):
+    __tablename__ = "config_store"
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=True)
+
+    @staticmethod
+    def get(key, default=None):
+        setting = ConfigStore.query.filter_by(key=key).first()
+        return setting.value if setting else default
+
+    @staticmethod
+    def set(key, value):
+        setting = ConfigStore.query.filter_by(key=key).first()
+        if setting:
+            setting.value = value
+        else:
+            setting = ConfigStore(key=key, value=value)
+            db.session.add(setting)
+        db.session.commit()
 
     def to_dict(self):
         gst_data = self.calculate_gst()

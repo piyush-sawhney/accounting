@@ -2,7 +2,9 @@ import os
 import csv
 import io
 import zipfile
+import secrets
 from datetime import datetime, timedelta
+from functools import wraps
 from flask import (
     Flask,
     render_template,
@@ -13,17 +15,37 @@ from flask import (
     send_file,
     jsonify,
     make_response,
+    session,
+    g,
 )
 from werkzeug.utils import secure_filename
 from weasyprint import HTML
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
+from flask_sqlalchemy import SQLAlchemy
+from models import (
+    db,
+    Settings,
+    Party,
+    Invoice,
+    InvoiceItem,
+    CreditNote,
+    CreditNoteItem,
+    User,
+    RecoveryCode,
+    ConfigStore,
+    hash_password,
+    generate_recovery_code,
+)
 
 from models import db, Settings, Party, Invoice, InvoiceItem, CreditNote, CreditNoteItem
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "gst-invoice-secret-key-2024"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///gst_invoices.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    f"postgresql+psycopg://postgres:postgres@localhost:5432/gst_invoices",
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["EXPORT_FOLDER"] = "exports"
@@ -32,6 +54,16 @@ app.config["LOGO_FOLDER"] = "static/logos"
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(app.config["EXPORT_FOLDER"], exist_ok=True)
 os.makedirs(app.config["LOGO_FOLDER"], exist_ok=True)
+
+
+@app.before_request
+def check_auth():
+    public_routes = ["login", "setup", "recovery", "static", "index"]
+    if request.endpoint and request.endpoint.split(".")[0] in public_routes:
+        return
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
 
 db.init_app(app)
 
@@ -346,13 +378,267 @@ def generate_invoice_numbers():
     return len(pending_invoices)
 
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("login", next=request.url))
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("login", next=request.url))
+        if session.get("role") != "admin":
+            flash("Admin access required", "danger")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
+
+    # If no users exist, show setup link
+    if not User.query.first():
+        session["no_users"] = True
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        remember = request.form.get("remember") == "on"
+
+        user = User.query.filter_by(username=username).first()
+
+        if user and user.is_active and user.check_password(password):
+            session["user_id"] = user.id
+            session["username"] = user.username
+            session["role"] = user.role
+
+            session.pop("setup_codes", None)
+            session.pop("new_codes", None)
+
+            if remember:
+                session.permanent = True
+                app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+            else:
+                session.permanent = True
+                app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+
+            flash(f"Welcome back, {user.username}!", "success")
+            next_url = request.args.get("next")
+            return redirect(next_url or url_for("dashboard"))
+
+        flash("Invalid username or password", "danger")
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    session.pop("setup_codes", None)
+    session.pop("new_codes", None)
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    if User.query.first():
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+
+        if not username or not password:
+            flash("All fields are required", "danger")
+        elif password != confirm:
+            flash("Passwords do not match", "danger")
+        elif len(password) < 6:
+            flash("Password must be at least 6 characters", "danger")
+        else:
+            user = User(username=username, role="admin", must_change_password=False)
+            user.set_password(password)
+            db.session.add(user)
+            db.session.flush()
+
+            codes = []
+            for _ in range(5):
+                code = generate_recovery_code()
+                codes.append(code)
+                rc = RecoveryCode(code=code, user_id=user.id)
+                db.session.add(rc)
+
+            db.session.commit()
+
+            session["setup_codes"] = codes
+
+            flash("Setup complete!", "success")
+            return redirect(url_for("setup_success"))
+
+    return render_template("setup.html")
+
+
+@app.route("/setup-success")
+def setup_success():
+    codes = session.get("setup_codes")
+    if not codes:
+        return redirect(url_for("setup"))
+    return render_template("setup_success.html", codes=codes)
+
+
+@app.route("/download-setup-codes")
+def download_setup_codes():
+    codes = session.get("setup_codes")
+    if not codes:
+        flash("No codes to download", "warning")
+        return redirect(url_for("setup"))
+
+    content = "Recovery Codes\n"
+    content += "=" * 50 + "\n\n"
+    for i, code in enumerate(codes, 1):
+        content += f"{i}. {code[:4]}-{code[4:]}\n"
+    content += "\n" + "=" * 50 + "\n"
+    content += "Each code can only be used once.\n"
+    content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+
+    return (
+        content.encode(),
+        200,
+        {
+            "Content-Type": "text/plain",
+            "Content-Disposition": "attachment;filename=recovery_codes.txt",
+        },
+    )
+
+
+@app.route("/recovery", methods=["GET", "POST"])
+def recovery():
+    if request.method == "POST":
+        code = request.form.get("code", "").strip().replace("-", "").replace(" ", "")
+
+        recovery = RecoveryCode.query.filter_by(
+            code=code.upper(), is_used=False
+        ).first()
+
+        if not recovery:
+            flash("Invalid or used recovery code", "danger")
+        else:
+            user = User.query.get(recovery.user_id)
+            new_password = request.form.get("password", "")
+            confirm = request.form.get("confirm_password", "")
+
+            if not new_password:
+                recovery.is_used = True
+                recovery.used_at = datetime.utcnow()
+                db.session.commit()
+                session["recovery_user_id"] = user.id
+                session["resetting_password"] = True
+                flash("Code verified! Set your new password.", "success")
+                return redirect(url_for("recovery"))
+
+            if new_password != confirm:
+                flash("Passwords do not match", "danger")
+            elif len(new_password) < 6:
+                flash("Password must be at least 6 characters", "danger")
+            else:
+                user.set_password(new_password)
+                recovery.is_used = True
+                recovery.used_at = datetime.utcnow()
+                db.session.commit()
+                flash("Password reset successful! Please login.", "success")
+                return redirect(url_for("login"))
+
+    return render_template("recovery.html")
+
+
+@app.route("/generate-recovery-codes", methods=["GET", "POST"])
+@admin_required
+def generate_recovery_codes():
+    if request.method == "GET":
+        flash("Invalid request method", "warning")
+        return redirect(url_for("manage_users"))
+
+    user_id = request.form.get("user_id")
+    if not user_id:
+        flash("User ID is required", "danger")
+        return redirect(url_for("manage_users"))
+
+    user = User.query.get(int(user_id))
+    if not user:
+        flash("User not found", "danger")
+        return redirect(url_for("manage_users"))
+
+    # Delete existing unused codes using a more robust method
+    RecoveryCode.query.filter_by(user_id=user.id, is_used=False).delete(
+        synchronize_session=False
+    )
+    db.session.commit()
+
+    codes = []
+    for _ in range(5):
+        code = generate_recovery_code()
+        codes.append(code)
+        rc = RecoveryCode(code=code, user_id=user_id)
+        db.session.add(rc)
+
+    db.session.commit()
+    session["new_codes"] = codes
+    ConfigStore.set("temp_recovery_codes", ",".join(codes))
+    flash("New recovery codes generated", "success")
+    return redirect(url_for("manage_users"))
+
+
+@app.route("/download-recovery-codes")
+@admin_required
+def download_recovery_codes():
+    codes_data = ConfigStore.get("temp_recovery_codes")
+    if not codes_data:
+        flash("No codes to download", "warning")
+        return redirect(url_for("manage_users"))
+
+    codes = codes_data.split(",")
+    content = "Recovery Codes\n"
+    content += "=" * 50 + "\n\n"
+    for i, code in enumerate(codes, 1):
+        content += f"{i}. {code[:4]}-{code[4:]}\n"
+    content += "\n" + "=" * 50 + "\n"
+    content += "Each code can only be used once.\n"
+    content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+
+    ConfigStore.set("temp_recovery_codes", "")
+
+    return (
+        content.encode(),
+        200,
+        {
+            "Content-Type": "text/plain",
+            "Content-Disposition": "attachment;filename=recovery_codes.txt",
+        },
+    )
+
+
 @app.route("/")
 def index():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+    if not User.query.first():
+        return redirect(url_for("setup"))
     return redirect(url_for("dashboard"))
 
 
-@app.route("/settings", methods=["GET", "POST"])
-def settings():
+@app.route("/company", methods=["GET", "POST"])
+@login_required
+def company():
     if request.method == "POST":
         Settings.set("company_name", request.form.get("company_name"))
         Settings.set("arn_number", request.form.get("arn_number"))
@@ -376,24 +662,82 @@ def settings():
     address = Settings.get("address", "")
     gstin = Settings.get("gstin", "")
     pan = Settings.get("pan", "")
-    logo = Settings.get("logo", "")
     place_of_supply = Settings.get("place_of_supply", "")
     state_code = Settings.get("state_code", "")
 
     return render_template(
-        "settings.html",
+        "company.html",
         company_name=company_name,
         arn_number=arn_number,
         address=address,
         gstin=gstin,
         pan=pan,
-        logo=logo,
         place_of_supply=place_of_supply,
         state_code=state_code,
     )
 
 
+@app.route("/users", methods=["GET", "POST"])
+@admin_required
+def manage_users():
+    display_codes = session.pop("new_codes", None)
+
+    if request.method == "POST":
+        action = request.form.get("action")
+
+        if action == "create":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            role = request.form.get("role", "staff")
+
+            if not username or not password:
+                flash("Username and password required", "danger")
+            elif User.query.filter_by(username=username).first():
+                flash("Username already exists", "danger")
+            else:
+                user = User(username=username, role=role, must_change_password=True)
+                user.set_password(password)
+                db.session.add(user)
+                db.session.commit()
+                flash(f"User {username} created", "success")
+
+        elif action == "delete":
+            user_id = request.form.get("user_id")
+            user = User.query.get(user_id)
+            if user and user.id != session.get("user_id"):
+                username = user.username
+                db.session.delete(user)
+                db.session.commit()
+                flash(f"User {username} deleted", "success")
+            elif user and user.id == session.get("user_id"):
+                flash("Cannot delete your own account", "danger")
+
+        elif action == "reset_password":
+            user_id = request.form.get("user_id")
+            new_password = request.form.get("new_password", "")
+
+            if not new_password or len(new_password) < 6:
+                flash("Password must be at least 6 characters", "danger")
+            else:
+                user = User.query.get(user_id)
+                user.set_password(new_password)
+                user.must_change_password = True
+                db.session.commit()
+                flash(f"Password reset for {user.username}", "success")
+
+    users = User.query.all()
+    return render_template("users.html", users=users, display_codes=display_codes)
+
+
+@app.route("/settings")
+@admin_required
+def settings():
+    return render_template("settings.html")
+
+
 @app.route("/dashboard")
+@app.route("/dashboard")
+@login_required
 def dashboard():
     date_range = request.args.get("date_range", "this_month")
     party_id = request.args.get("party")
@@ -714,13 +1058,11 @@ def dashboard():
             m += 12
             y -= 1
 
-        start = f"{y}-{m:02d}-01"
+        start = datetime(y, m, 1).date()
         if m == 12:
-            end = f"{y + 1}-01-01"
-        elif m == now.month and i == 0:
-            end = f"{y + 1}-13-01"
+            end = datetime(y + 1, 1, 1).date()
         else:
-            end = f"{y}-{m + 1:02d}-01"
+            end = datetime(y, m + 1, 1).date()
 
         month_invoices = Invoice.query.filter(
             Invoice.invoice_date >= start, Invoice.invoice_date < end
@@ -970,7 +1312,12 @@ def party_api(party_id):
 
 
 @app.route("/parties", methods=["GET", "POST"])
+@login_required
 def parties():
+    # Check authentication
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
     if request.method == "POST":
         name = request.form.get("name")
         gstin = request.form.get("gstin")
@@ -1125,6 +1472,10 @@ def delete_party(party_id):
 
 @app.route("/invoices", methods=["GET"])
 def manage_invoices():
+    # Check authentication
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
     year = request.args.get("year")
     month = request.args.get("month")
     search = request.args.get("search", "").strip()
