@@ -3,16 +3,17 @@ from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import secrets
 import hashlib
+import bcrypt
 
 db = SQLAlchemy()
 
 
 def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password, hashed):
-    return hash_password(password) == hashed
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def generate_recovery_code():
@@ -44,6 +45,10 @@ class Settings(db.Model):
 
 class Party(db.Model):
     __tablename__ = "parties"
+    __table_args__ = (
+        db.Index("idx_party_gstin", "gstin"),
+        db.Index("idx_party_name", "name"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
@@ -76,6 +81,12 @@ class Party(db.Model):
 
 class Invoice(db.Model):
     __tablename__ = "invoices"
+    __table_args__ = (
+        db.Index("idx_invoice_date", "invoice_date"),
+        db.Index("idx_invoice_party_id", "party_id"),
+        db.Index("idx_invoice_locked", "locked"),
+        db.Index("idx_invoice_invoice_no", "invoice_no"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     invoice_no = db.Column(db.String(50), unique=True, nullable=True)
@@ -230,30 +241,7 @@ class ConfigStore(db.Model):
         db.session.commit()
 
     def to_dict(self):
-        gst_data = self.calculate_gst()
-        return {
-            "id": self.id,
-            "invoice_no": self.invoice_no,
-            "reference_serial_no": self.reference_serial_no,
-            "invoice_date": self.invoice_date.strftime("%Y-%m-%d"),
-            "party_id": self.party_id,
-            "party": self.party.to_dict() if self.party else None,
-            "tax_type": self.tax_type,
-            "place_of_supply": self.place_of_supply,
-            "sac_hsn_code": self.sac_hsn_code,
-            "items": [item.to_dict() for item in self.items],
-            "gst_data": gst_data,
-            "total_in_words": self.total_in_words,
-            "reverse_charge": self.reverse_charge,
-            "is_rcm": self.is_rcm,
-            "distributor_code": self.distributor_code,
-            "party_name": self.party_name,
-            "party_address": self.party_address,
-            "party_gstin": self.party_gstin,
-            "party_pan": self.party_pan,
-            "party_state": self.party_state,
-            "party_state_code": self.party_state_code,
-        }
+        return {"id": self.id, "key": self.key, "value": self.value}
 
 
 class InvoiceItem(db.Model):
