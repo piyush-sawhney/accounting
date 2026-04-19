@@ -45,9 +45,14 @@
         
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="h3 text-dark"><i class="bi bi-people me-2"></i>User Management</h2>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
-                <i class="bi bi-plus-circle me-1"></i> Add User
-            </button>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('backup') }}" class="btn btn-outline-success">
+                    <i class="bi bi-download me-1"></i> Backup
+                </a>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+                    <i class="bi bi-plus-circle me-1"></i> Add User
+                </button>
+            </div>
         </div>
         
         <div class="card">
