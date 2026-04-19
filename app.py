@@ -3,7 +3,7 @@ import csv
 import io
 import zipfile
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import (
     Flask,
@@ -58,6 +58,15 @@ from helpers import (
     calculate_top_parties,
     get_trend_months,
     get_month_name,
+)
+from forms import (
+    LoginForm,
+    SetupForm,
+    PartyForm,
+    InvoiceForm,
+    CreditNoteForm,
+    RecoveryCodeForm,
+    UserForm,
 )
 
 # Constants
@@ -568,13 +577,13 @@ def recovery():
         if not recovery:
             flash("Invalid or used recovery code", "danger")
         else:
-            user = User.query.get(recovery.user_id)
+            user = db.session.get(User, recovery.user_id)
             new_password = request.form.get("password", "")
             confirm = request.form.get("confirm_password", "")
 
             if not new_password:
                 recovery.is_used = True
-                recovery.used_at = datetime.utcnow()
+                recovery.used_at = datetime.now(timezone.utc)
                 db.session.commit()
                 session["recovery_user_id"] = user.id
                 session["resetting_password"] = True
@@ -588,7 +597,7 @@ def recovery():
             else:
                 user.set_password(new_password)
                 recovery.is_used = True
-                recovery.used_at = datetime.utcnow()
+                recovery.used_at = datetime.now(timezone.utc)
                 db.session.commit()
                 flash("Password reset successful! Please login.", "success")
                 return redirect(url_for("login"))
@@ -608,7 +617,7 @@ def generate_recovery_codes():
         flash("User ID is required", "danger")
         return redirect(url_for("manage_users"))
 
-    user = User.query.get(int(user_id))
+    user = db.session.get(User, int(user_id))
     if not user:
         flash("User not found", "danger")
         return redirect(url_for("manage_users"))
@@ -759,7 +768,7 @@ def manage_users():
 
         elif action == "delete":
             user_id = request.form.get("user_id")
-            user = User.query.get(user_id)
+            user = db.session.get(User, int(user_id))
             if user and user.id != session.get("user_id"):
                 username = user.username
                 db.session.delete(user)
@@ -775,7 +784,7 @@ def manage_users():
             if not new_password or len(new_password) < 6:
                 flash("Password must be at least 6 characters", "danger")
             else:
-                user = User.query.get(user_id)
+                user = db.session.get(User, int(user_id))
                 user.set_password(new_password)
                 user.must_change_password = True
                 db.session.commit()
@@ -1624,7 +1633,7 @@ def create_invoice():
         )
 
         # Local copy of party details
-        party = Party.query.get(party_id)
+        party = db.session.get(Party, party_id)
         if party:
             invoice.party_name = party.name
             invoice.party_address = party.address
@@ -1769,7 +1778,7 @@ def batch_export():
     exported_count = 0
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for invoice_id in invoice_ids:
-            invoice = Invoice.query.get(invoice_id)
+            invoice = db.session.get(Invoice, int(invoice_id))
             if not invoice or not invoice.invoice_no or not invoice.locked:
                 continue
 
@@ -1832,7 +1841,7 @@ def batch_export_excel():
     row_idx = 2
     exported_count = 0
     for invoice_id in invoice_ids:
-        invoice = Invoice.query.get(invoice_id)
+        invoice = db.session.get(Invoice, int(invoice_id))
         if not invoice or not invoice.invoice_no or not invoice.locked:
             continue
 
@@ -2147,7 +2156,7 @@ def sync_party(invoice_id):
         return jsonify(
             {"success": False, "message": "Locked invoices cannot be synced"}
         ), 403
-    party = Party.query.get(invoice.party_id)
+    party = db.session.get(Party, invoice.party_id)
     if not party:
         return jsonify({"success": False, "message": "Linked party not found"}), 404
     invoice.party_name = party.name
@@ -2181,12 +2190,12 @@ def batch_sync():
         return redirect(url_for("manage_invoices"))
     synced_count, locked_count = 0, 0
     for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
+        inv = db.session.get(Invoice, int(inv_id))
         if inv:
             if inv.locked:
                 locked_count += 1
                 continue
-            party = Party.query.get(inv.party_id)
+            party = db.session.get(Party, inv.party_id)
             if party:
                 inv.party_name = party.name
                 inv.party_address = party.address
@@ -2215,7 +2224,7 @@ def batch_lock():
     locked_count = 0
     skipped_count = 0
     for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
+        inv = db.session.get(Invoice, int(inv_id))
         if inv:
             if inv.locked:
                 skipped_count += 1
@@ -2245,7 +2254,7 @@ def batch_unlock():
     unlocked_count = 0
     skipped_count = 0
     for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
+        inv = db.session.get(Invoice, int(inv_id))
         if inv:
             if not inv.locked:
                 skipped_count += 1
@@ -2270,7 +2279,7 @@ def batch_delete():
     deleted_count = 0
     skipped_count = 0
     for inv_id in invoice_ids:
-        inv = Invoice.query.get(inv_id)
+        inv = db.session.get(Invoice, int(inv_id))
         if inv and not inv.locked:
             if inv.credit_notes:
                 skipped_count += 1
@@ -2563,7 +2572,7 @@ def create_credit_note():
             flash(f"Credit note already exists for this invoice.", "warning")
             return redirect(url_for("create_credit_note"))
 
-        invoice = Invoice.query.get(invoice_id)
+        invoice = db.session.get(Invoice, invoice_id)
 
         credit_note = CreditNote(
             credit_note_date=credit_note_date,
@@ -2621,7 +2630,7 @@ def create_credit_note():
     selected_invoice = None
     invoice_items = []
     if invoice_id:
-        selected_invoice = Invoice.query.get(invoice_id)
+        selected_invoice = db.session.get(Invoice, invoice_id)
         if selected_invoice:
             invoice_items = selected_invoice.items
 
@@ -2655,7 +2664,7 @@ def batch_delete_credit_notes():
     deleted_count = 0
     skipped_count = 0
     for cn_id in credit_note_ids:
-        cn = CreditNote.query.get(cn_id)
+        cn = db.session.get(CreditNote, int(cn_id))
         if cn and not cn.locked:
             db.session.delete(cn)
             deleted_count += 1
@@ -2679,7 +2688,7 @@ def batch_lock_credit_notes():
     locked_count = 0
     skipped_count = 0
     for cn_id in credit_note_ids:
-        cn = CreditNote.query.get(cn_id)
+        cn = db.session.get(CreditNote, int(cn_id))
         if cn:
             if cn.locked:
                 skipped_count += 1
@@ -2709,7 +2718,7 @@ def batch_unlock_credit_notes():
     unlocked_count = 0
     skipped_count = 0
     for cn_id in credit_note_ids:
-        cn = CreditNote.query.get(cn_id)
+        cn = db.session.get(CreditNote, int(cn_id))
         if cn:
             if not cn.locked:
                 skipped_count += 1

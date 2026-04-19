@@ -1,11 +1,15 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import secrets
 import hashlib
 import bcrypt
 
 db = SQLAlchemy()
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
 
 
 def hash_password(password):
@@ -60,7 +64,7 @@ class Party(db.Model):
     state_code = db.Column(db.String(5), nullable=True)
     email = db.Column(db.String(100), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
     invoices = db.relationship("Invoice", backref="party", lazy=True)
 
@@ -91,7 +95,7 @@ class Invoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     invoice_no = db.Column(db.String(50), unique=True, nullable=True)
     reference_serial_no = db.Column(db.String(50), nullable=True)
-    invoice_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    invoice_date = db.Column(db.Date, nullable=False, default=datetime.now().date)
     party_id = db.Column(db.Integer, db.ForeignKey("parties.id"), nullable=False)
 
     tax_type = db.Column(db.String(10), nullable=False)
@@ -113,9 +117,9 @@ class Invoice(db.Model):
 
     locked = db.Column(db.Boolean, nullable=True, default=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        db.DateTime, default=utc_now, onupdate=utc_now
     )
 
     items = db.relationship(
@@ -166,9 +170,9 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default="staff")  # admin or staff
     must_change_password = db.Column(db.Boolean, default=True)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        db.DateTime, default=utc_now, onupdate=utc_now
     )
 
     def set_password(self, password):
@@ -199,7 +203,7 @@ class RecoveryCode(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     is_used = db.Column(db.Boolean, default=False)
     used_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
     user = db.relationship("User", backref="recovery_codes")
 
@@ -280,7 +284,7 @@ class CreditNote(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     credit_note_no = db.Column(db.String(50), unique=True, nullable=True)
-    credit_note_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    credit_note_date = db.Column(db.Date, nullable=False, default=datetime.now().date)
     invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False)
 
     reason = db.Column(db.String(100), nullable=False)
@@ -298,9 +302,9 @@ class CreditNote(db.Model):
 
     locked = db.Column(db.Boolean, nullable=True, default=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        db.DateTime, default=utc_now, onupdate=utc_now
     )
 
     invoice = db.relationship("Invoice", backref="credit_notes")
