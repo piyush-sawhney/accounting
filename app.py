@@ -1392,8 +1392,8 @@ def export_parties():
 @app.route("/export/parties/selected", methods=["POST"])
 def export_selected_parties():
     ids_raw = request.form.get("party_ids", "")
-    party_ids = ids_raw.split(",") if ids_raw else []
-    if not party_ids or party_ids == [""]:
+    party_ids = [int(x) for x in ids_raw.split(",") if x] if ids_raw else []
+    if not party_ids:
         flash("No parties selected", "warning")
         return redirect(url_for("parties"))
     parties = Party.query.filter(Party.id.in_(party_ids)).all()
@@ -1434,7 +1434,7 @@ def export_parties_response(parties):
 
     output.seek(0)
     return send_file(
-        output,
+        io.BytesIO(output.getvalue().encode("utf-8")),
         mimetype="text/csv",
         as_attachment=True,
         download_name=f"parties_export_{datetime.now().strftime('%Y%m%d')}.csv",
