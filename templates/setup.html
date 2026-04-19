@@ -174,22 +174,23 @@
         {% endwith %}
         
         <form method="POST">
+            {{ form.hidden_tag() }}
             <div class="section-label">Admin Account</div>
             <div class="mb-3">
                 <label class="form-label">Full Name *</label>
-                <input type="text" name="full_name" class="form-control" required>
+                {{ form.full_name(class="form-control") }}
             </div>
             <div class="mb-3">
                 <label class="form-label">Username *</label>
-                <input type="text" name="username" class="form-control" required>
+                {{ form.username(class="form-control") }}
             </div>
             <div class="mb-3">
                 <label class="form-label">Password * (min 6 characters)</label>
-                <input type="password" name="password" class="form-control" required minlength="6">
+                {{ form.password(class="form-control") }}
             </div>
             <div class="mb-4">
                 <label class="form-label">Confirm Password *</label>
-                <input type="password" name="confirm_password" class="form-control" required>
+                {{ form.confirm_password(class="form-control") }}
             </div>
             
             <button type="submit" class="btn btn-primary">

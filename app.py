@@ -85,16 +85,6 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Initialize rate limiter
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",
-)
 app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["EXPORT_FOLDER"] = "exports"
 app.config["LOGO_FOLDER"] = "static/logos"
@@ -453,7 +443,6 @@ def admin_required(f):
 
 
 @app.route("/login", methods=["GET", "POST"])
-@limiter.limit("5 per minute")
 def login():
     if session.get("user_id"):
         return redirect(url_for("dashboard"))
@@ -525,6 +514,7 @@ def setup():
         db.session.commit()
 
         session["setup_codes"] = codes
+        ConfigStore.set("setup_codes", ",".join(codes))
 
         flash("Setup complete!", "success")
         return redirect(url_for("setup_success"))
@@ -534,7 +524,10 @@ def setup():
 
 @app.route("/setup-success")
 def setup_success():
-    codes = session.get("setup_codes")
+    codes = session.get("setup_codes", [])
+    if not codes:
+        codes_str = ConfigStore.get("setup_codes", "")
+        codes = [c for c in codes_str.split(",") if c] if codes_str else []
     if not codes:
         return redirect(url_for("setup"))
     return render_template("setup_success.html", codes=codes)
@@ -542,7 +535,10 @@ def setup_success():
 
 @app.route("/download-setup-codes")
 def download_setup_codes():
-    codes = session.get("setup_codes")
+    codes = session.get("setup_codes", [])
+    if not codes:
+        codes_str = ConfigStore.get("setup_codes", "")
+        codes = [c for c in codes_str.split(",") if c] if codes_str else []
     if not codes:
         flash("No codes to download", "warning")
         return redirect(url_for("setup"))
