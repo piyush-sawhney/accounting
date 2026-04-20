@@ -1,8 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import secrets
-import hashlib
 import bcrypt
 
 db = SQLAlchemy()

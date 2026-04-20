@@ -8,7 +8,6 @@ from wtforms import (
     SelectField,
     DateField,
     FloatField,
-    IntegerField,
 )
 from wtforms.validators import (
     DataRequired,

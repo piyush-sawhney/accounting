@@ -1,8 +1,5 @@
 from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
 from models import Invoice, Party
-from sqlalchemy import extract
-from flask import g
 from app import db
 
 
