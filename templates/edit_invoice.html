@@ -30,36 +30,40 @@
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label text-muted small">Invoice Number</label>
                             <input type="text" name="invoice_no" class="form-control" value="{{ invoice.invoice_no or '' }}" placeholder="26-27/001">
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label text-muted small">Reference Serial No.</label>
-                            <input type="text" name="reference_serial_no" class="form-control" value="{{ invoice.reference_serial_no or '' }}">
-                        </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label text-muted small">Invoice Date *</label>
                             <input type="date" name="invoice_date" class="form-control" required value="{{ invoice.invoice_date.strftime('%Y-%m-%d') }}">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small">Reference Serial No.</label>
+                            <input type="text" name="reference_serial_no" class="form-control" value="{{ invoice.reference_serial_no or '' }}">
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-4">
                             <label class="form-label text-muted small">Tax Type *</label>
                             <select name="tax_type" class="form-select" required id="taxType">
                                 <option value="INTRA" {% if invoice.tax_type == 'INTRA' %}selected{% endif %}>Intra (CGST + SGST)</option>
                                 <option value="INTER" {% if invoice.tax_type == 'INTER' %}selected{% endif %}>Inter (IGST)</option>
                             </select>
                         </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="is_rcm" class="form-check-input" id="isRcm" {% if invoice.is_rcm %}checked{% endif %}>
+                                <label class="form-check-label fw-semibold" for="isRcm">Enable RCM (Reverse Charge Mechanism)</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small">Reverse Charge Amount (₹)</label>
+                            <input type="number" name="reverse_charge" class="form-control" value="{{ invoice.reverse_charge or 0 }}" min="0" step="0.01">
+                        </div>
                     </div>
                     <div class="row g-3 mt-1">
-                        <div class="col-md-3">
-                            <label class="form-label text-muted small">Place of Supply</label>
-                            <input type="text" name="place_of_supply" class="form-control" value="{{ invoice.place_of_supply or '' }}">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label text-muted small">SAC/HSN Code</label>
-                            <input type="text" name="sac_hsn_code" class="form-control" value="{{ invoice.sac_hsn_code or '' }}">
-                        </div>
-                        <div class="col-md-3">
+                        <div class="col-md-4">
                             <label class="form-label text-muted small">Distributor Code</label>
                             <input type="text" name="distributor_code" class="form-control" value="{{ invoice.distributor_code or '' }}">
                         </div>
@@ -69,12 +73,42 @@
             
             <div class="card mb-4">
                 <div class="card-header bg-white pt-4 pb-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 text-primary"><i class="bi bi-person me-2"></i>Party Details</h5>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="syncPartyBtn" {% if invoice.locked %}disabled{% endif %}>
-                            <i class="bi bi-arrow-repeat me-1"></i> Sync from Master
-                        </button>
+                    <h5 class="mb-0 text-primary"><i class="bi bi-building me-2"></i>Company Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small">Select Company *</label>
+                            <select name="company_id" id="companySelect" class="form-select" required>
+                                <option value="">-- Select Company --</option>
+                                {% for c in companies %}
+                                <option value="{{ c.id }}" data-name="{{ c.name }}" data-gstin="{{ c.gstin or '' }}" data-pan="{{ c.pan or '' }}" data-address="{{ c.address or '' }}" {% if invoice.company_name == c.name %}selected{% endif %}>{{ c.name }} ({{ c.gstin or 'No GSTIN' }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small">Company Name</label>
+                            <input type="text" name="company_name" id="company_name" class="form-control" value="{{ invoice.company_name or 'Not set' }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small">GSTIN</label>
+                            <input type="text" name="company_gstin" id="company_gstin" class="form-control" value="{{ invoice.company_gstin or 'Not set' }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small">PAN</label>
+                            <input type="text" name="company_pan" id="company_pan" class="form-control" value="{{ invoice.company_pan or 'Not set' }}" readonly>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label text-muted small">Address</label>
+                            <textarea name="company_address" id="company_address" class="form-control" rows="2" readonly>{{ invoice.company_address or 'Not set' }}</textarea>
+                        </div>
                     </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2">
+                    <h5 class="mb-0 text-primary"><i class="bi bi-person me-2"></i>Party Details</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
@@ -86,6 +120,10 @@
                                 <option value="{{ party.id }}" {% if party.id == invoice.party_id %}selected{% endif %}>{{ party.name }} ({{ party.gstin }})</option>
                                 {% endfor %}
                             </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small">Place of Supply</label>
+                            <input type="text" name="place_of_supply" id="place_of_supply" class="form-control" value="{{ invoice.place_of_supply or '' }}">
                         </div>
                     </div>
                     <hr class="my-3">
@@ -121,26 +159,6 @@
             </div>
             
             <div class="card mb-4">
-                <div class="card-header bg-white pt-4 pb-2">
-                    <h5 class="mb-0 text-primary"><i class="bi bi-arrow-left-circle me-2"></i>Reverse Charge / RCM</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3 align-items-center">
-                        <div class="col-md-4">
-                            <label class="form-label text-muted small">Reverse Charge Amount (₹)</label>
-                            <input type="number" name="reverse_charge" class="form-control" value="{{ invoice.reverse_charge or 0 }}" min="0" step="0.01">
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-check mt-4">
-                                <input type="checkbox" name="is_rcm" class="form-check-input" id="isRcm" {% if invoice.is_rcm %}checked{% endif %}>
-                                <label class="form-check-label fw-semibold" for="isRcm">Enable RCM (Reverse Charge Mechanism)</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card mb-4">
                 <div class="card-header bg-white pt-4 pb-2 border-bottom-0 d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 text-primary"><i class="bi bi-list-ul me-2"></i>Invoice Items</h5>
                     <button type="button" class="btn btn-outline-primary btn-sm" id="addItemBtn">
@@ -152,7 +170,8 @@
                         <table class="table table-hover align-middle mb-0" id="itemsTable">
                             <thead class="table-light">
                                 <tr>
-                                    <th style="width: 35%;">Description *</th>
+                                    <th style="width: 30%;">Description *</th>
+                                    <th style="width: 15%;">SAC/HSN Code</th>
                                     <th style="width: 15%;">Taxable Value (₹)</th>
                                     <th style="width: 12%;"><span class="tax-col-intra">IGST %</span></th>
                                     <th style="width: 12%;"><span class="tax-col-inter">CGST %</span></th>
@@ -165,6 +184,7 @@
                                 {% for item in invoice.items %}
                                 <tr class="item-row">
                                     <td><input type="text" name="item_description[]" class="form-control" required value="{{ item.description }}"></td>
+                                    <td><input type="text" name="item_sac_hsn[]" class="form-control" value="{{ item.sac_hsn_code or '' }}"></td>
                                     <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="{{ item.taxable_value }}" min="0" step="0.01"></td>
                                     <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="{{ item.igst_rate }}" min="0" step="0.1"></td>
                                     <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="{{ item.cgst_rate }}" min="0" step="0.1"></td>
@@ -176,7 +196,7 @@
                             </tbody>
                             <tfoot class="table-light">
                                 <tr>
-                                    <td colspan="5" class="text-end fw-semibold">Grand Total:</td>
+                                    <td colspan="6" class="text-end fw-semibold">Grand Total:</td>
                                     <td class="text-end fw-bold" id="grandTotal">₹0.00</td>
                                     <td></td>
                                 </tr>
@@ -201,7 +221,6 @@
 <script>
     const partySelect = new TomSelect("#partySelect", {
         create: false,
-        sortField: { string: 'text', direction: 'asc' },
         onChange: async function(value) {
             if (!value) return;
             try {
@@ -219,24 +238,18 @@
         }
     });
 
-    document.getElementById('syncPartyBtn').addEventListener('click', async function() {
-        const invoiceId = "{{ invoice.id }}";
-        try {
-            const response = await fetch(`/invoice/sync-party/${invoiceId}`);
-            const result = await response.json();
-            if (result.success) {
-                const data = result.data;
-                document.getElementById('party_name').value = data.name;
-                document.getElementById('party_gstin').value = data.gstin;
-                document.getElementById('party_pan').value = data.pan;
-                document.getElementById('party_address').value = data.address;
-                document.getElementById('party_state').value = data.state;
-                document.getElementById('party_state_code').value = data.state_code;
-            } else {
-                alert(result.message);
-            }
-        } catch (error) {
-            alert("An error occurred while syncing party details.");
+    document.getElementById('companySelect').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption.value) {
+            document.getElementById('company_name').value = selectedOption.dataset.name || '';
+            document.getElementById('company_gstin').value = selectedOption.dataset.gstin || '';
+            document.getElementById('company_pan').value = selectedOption.dataset.pan || '';
+            document.getElementById('company_address').value = selectedOption.dataset.address || '';
+        } else {
+            document.getElementById('company_name').value = '';
+            document.getElementById('company_gstin').value = '';
+            document.getElementById('company_pan').value = '';
+            document.getElementById('company_address').value = '';
         }
     });
 
@@ -299,12 +312,11 @@
 
     document.getElementById('addItemBtn').addEventListener('click', function() {
         const tbody = document.getElementById('itemsBody');
-        const isInter = document.getElementById('taxType').value === 'INTER';
-        
         const newRow = document.createElement('tr');
         newRow.className = 'item-row';
         newRow.innerHTML = `
             <td><input type="text" name="item_description[]" class="form-control" required placeholder="Service description"></td>
+            <td><input type="text" name="item_sac_hsn[]" class="form-control" placeholder="e.g., 9971"></td>
             <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="0" min="0" step="0.01"></td>
             <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="18" min="0" step="0.1"></td>
             <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="9" min="0" step="0.1"></td>

@@ -31,21 +31,16 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small">Reference Serial Number</label>
-                            <input type="text" name="reference_serial_no" class="form-control" placeholder="From RTA/Report">
+                            <label class="form-label text-muted small">Invoice Number</label>
+                            <input type="text" name="invoice_no" class="form-control" placeholder="e.g., 26-27/001">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label text-muted small">Invoice Date *</label>
                             <input type="date" name="invoice_date" class="form-control" required value="{{ current_date }}">
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small">Select Party *</label>
-                            <select name="party_id" id="partySelect" class="form-select" required>
-                                <option value="">-- Select Party --</option>
-                                {% for party in parties %}
-                                <option value="{{ party.id }}">{{ party.name }} ({{ party.gstin }})</option>
-                                {% endfor %}
-                            </select>
+                            <label class="form-label text-muted small">Reference Serial Number</label>
+                            <input type="text" name="reference_serial_no" class="form-control" placeholder="From RTA/Report">
                         </div>
                     </div>
                     <div class="row">
@@ -56,30 +51,111 @@
                                 <option value="INTER" selected>Inter-state (IGST)</option>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small">Place of Supply</label>
-                            <input type="text" name="place_of_supply" class="form-control" placeholder="e.g., Mumbai">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small">SAC/HSN Code</label>
-                            <input type="text" name="sac_hsn_code" class="form-control" placeholder="e.g., 9971">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small">Reverse Charge</label>
-                            <input type="number" name="reverse_charge" class="form-control" value="0" min="0" step="0.01">
-                        </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
-                            <div class="form-check">
+                            <div class="form-check mb-2">
                                 <input type="checkbox" name="is_rcm" class="form-check-input" id="isRcm">
                                 <label class="form-check-label" for="isRcm">RCM (Reverse Charge Mechanism)</label>
                             </div>
                         </div>
-                         <div class="col-md-4 mb-3">
-                             <label class="form-label text-muted small">Distributor Code</label>
-                             <input type="text" name="distributor_code" class="form-control" placeholder="Enter code">
-                         </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Reverse Charge Amount (₹)</label>
+                            <input type="number" name="reverse_charge" class="form-control" value="0" min="0" step="0.01">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Distributor Code</label>
+                            <input type="text" name="distributor_code" class="form-control" placeholder="Enter code">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2">
+                    <h5 class="mb-0 text-primary"><i class="bi bi-building me-2"></i>Company Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Select Company *</label>
+                            <select name="company_id" id="companySelect" class="form-select" required>
+                                <option value="">-- Select Company --</option>
+                                {% for c in companies %}
+                                <option value="{{ c.id }}" data-name="{{ c.name }}" data-gstin="{{ c.gstin or '' }}" data-pan="{{ c.pan or '' }}" data-address="{{ c.address or '' }}" {% if company and c.id == company.id %}selected{% endif %}>{{ c.name }} ({{ c.gstin or 'No GSTIN' }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Company Name</label>
+                            <input type="text" name="company_name" id="company_name" class="form-control" value="{{ company.name if company else '' }}" readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">GSTIN</label>
+                            <input type="text" name="company_gstin" id="company_gstin" class="form-control" value="{{ company.gstin if company else '' }}" readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">PAN</label>
+                            <input type="text" name="company_pan" id="company_pan" class="form-control" value="{{ company.pan if company else '' }}" readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Address</label>
+                            <textarea name="company_address" id="company_address" class="form-control" rows="2" readonly>{{ company.address if company else '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2">
+                    <h5 class="mb-0 text-primary"><i class="bi bi-person me-2"></i>Party Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Select Party *</label>
+                            <select name="party_id" id="partySelect" class="form-select" required>
+                                <option value="">-- Select Party --</option>
+                                {% for party in parties %}
+                                <option value="{{ party.id }}">{{ party.name }} ({{ party.gstin }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Place of Supply</label>
+                            <input type="text" name="place_of_supply" id="place_of_supply" class="form-control" placeholder="e.g., Mumbai">
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Party Name</label>
+                            <input type="text" name="party_name" id="party_name" class="form-control" readonly>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">GSTIN</label>
+                            <input type="text" name="party_gstin" id="party_gstin" class="form-control" readonly>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">PAN</label>
+                            <input type="text" name="party_pan" id="party_pan" class="form-control" readonly>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Address</label>
+                            <textarea name="party_address" id="party_address" class="form-control" rows="2" readonly></textarea>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label text-muted small">State</label>
+                            <input type="text" name="party_state" id="party_state" class="form-control" readonly>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label text-muted small">State Code</label>
+                            <input type="text" name="party_state_code" id="party_state_code" class="form-control" readonly>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -97,6 +173,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Description *</th>
+                                    <th>SAC/HSN Code</th>
                                     <th>Taxable Value (₹)</th>
                                     <th>IGST %</th>
                                     <th>CGST %</th>
@@ -108,6 +185,7 @@
                             <tbody id="itemsBody">
                                 <tr class="item-row">
                                     <td><input type="text" name="item_description[]" class="form-control" required placeholder="Service description"></td>
+                                    <td><input type="text" name="item_sac_hsn[]" class="form-control" placeholder="e.g., 9971"></td>
                                     <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="0" min="0" step="0.01"></td>
                                     <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="0" min="0" step="0.1"></td>
                                     <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="0" min="0" step="0.1"></td>
@@ -136,11 +214,8 @@
     // Initialize Tom Select for Party Dropdown
     new TomSelect("#partySelect", {
         create: false,
-        sortField: {
-            string: 'text',
-            direction: 'asc'
-        }
     });
+
 
     function applyTaxTypeDefaults() {
         const isInter = document.getElementById('taxType').value === 'INTER';
@@ -186,6 +261,7 @@
         const sgstVal = isInter ? 0 : 9;
         newRow.innerHTML = `
             <td><input type="text" name="item_description[]" class="form-control" required placeholder="Service description"></td>
+            <td><input type="text" name="item_sac_hsn[]" class="form-control" placeholder="e.g., 9971"></td>
             <td><input type="number" name="item_taxable_value[]" class="form-control taxable-input" value="0" min="0" step="0.01"></td>
             <td><input type="number" name="item_igst_rate[]" class="form-control igst-input" value="${igstVal}" min="0" step="0.1"></td>
             <td><input type="number" name="item_cgst_rate[]" class="form-control cgst-input" value="${cgstVal}" min="0" step="0.1"></td>
@@ -236,5 +312,46 @@
     }
     
     document.querySelectorAll('.item-row').forEach(attachRowEvents);
+    
+    document.getElementById('companySelect').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption.value) {
+            document.getElementById('company_name').value = selectedOption.dataset.name || '';
+            document.getElementById('company_gstin').value = selectedOption.dataset.gstin || '';
+            document.getElementById('company_pan').value = selectedOption.dataset.pan || '';
+            document.getElementById('company_address').value = selectedOption.dataset.address || '';
+        } else {
+            document.getElementById('company_name').value = '';
+            document.getElementById('company_gstin').value = '';
+            document.getElementById('company_pan').value = '';
+            document.getElementById('company_address').value = '';
+        }
+    });
+
+    document.getElementById('partySelect').addEventListener('change', async function() {
+        const partyId = this.value;
+        if (!partyId) {
+            document.getElementById('party_name').value = '';
+            document.getElementById('party_gstin').value = '';
+            document.getElementById('party_pan').value = '';
+            document.getElementById('party_address').value = '';
+            document.getElementById('party_state').value = '';
+            document.getElementById('party_state_code').value = '';
+            return;
+        }
+        try {
+            const response = await fetch(`/party/api/${partyId}`);
+            const data = await response.json();
+            document.getElementById('party_name').value = data.name || '';
+            document.getElementById('party_gstin').value = data.gstin || '';
+            document.getElementById('party_pan').value = data.pan || '';
+            document.getElementById('party_address').value = data.address || '';
+            document.getElementById('party_state').value = data.state || '';
+            document.getElementById('party_state_code').value = data.state_code || '';
+        } catch (error) {
+            console.error("Error fetching party details:", error);
+        }
+    });
+
 </script>
 {% endblock %}

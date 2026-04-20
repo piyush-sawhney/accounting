@@ -23,27 +23,21 @@ def generate_recovery_code():
     return secrets.token_hex(4).upper()  # e.g., "A1B2C3D4"
 
 
-class Settings(db.Model):
-    __tablename__ = "settings"
+class Company(db.Model):
+    __tablename__ = "company"
+    __table_args__ = (
+        db.Index("idx_company_default", "is_default"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    key = db.Column(db.String(50), unique=True, nullable=False)
-    value = db.Column(db.Text, nullable=True)
-
-    @staticmethod
-    def get(key, default=None):
-        setting = Settings.query.filter_by(key=key).first()
-        return setting.value if setting else default
-
-    @staticmethod
-    def set(key, value):
-        setting = Settings.query.filter_by(key=key).first()
-        if setting:
-            setting.value = value
-        else:
-            setting = Settings(key=key, value=value)
-            db.session.add(setting)
-        db.session.commit()
+    name = db.Column(db.String(200), nullable=False)
+    address = db.Column(db.Text, nullable=True)
+    gstin = db.Column(db.String(20), nullable=True)
+    pan = db.Column(db.String(20), nullable=True)
+    logo = db.Column(db.String(100), nullable=True)
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
 
 
 class Party(db.Model):
@@ -113,6 +107,11 @@ class Invoice(db.Model):
     party_pan = db.Column(db.String(20), nullable=True)
     party_state = db.Column(db.String(50), nullable=True)
     party_state_code = db.Column(db.String(5), nullable=True)
+
+    company_name = db.Column(db.String(200), nullable=True)
+    company_address = db.Column(db.Text, nullable=True)
+    company_gstin = db.Column(db.String(20), nullable=True)
+    company_pan = db.Column(db.String(20), nullable=True)
 
     locked = db.Column(db.Boolean, nullable=True, default=False)
 
@@ -253,6 +252,7 @@ class InvoiceItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False)
     description = db.Column(db.String(500), nullable=False)
+    sac_hsn_code = db.Column(db.String(20), nullable=True)
 
     taxable_value = db.Column(db.Float, nullable=False, default=0)
 
@@ -298,6 +298,11 @@ class CreditNote(db.Model):
     party_pan = db.Column(db.String(20), nullable=True)
     party_state = db.Column(db.String(50), nullable=True)
     party_state_code = db.Column(db.String(5), nullable=True)
+
+    company_name = db.Column(db.String(200), nullable=True)
+    company_address = db.Column(db.Text, nullable=True)
+    company_gstin = db.Column(db.String(20), nullable=True)
+    company_pan = db.Column(db.String(20), nullable=True)
 
     locked = db.Column(db.Boolean, nullable=True, default=False)
 

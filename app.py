@@ -24,7 +24,7 @@ from openpyxl.styles import Font, Alignment, PatternFill
 from flask_sqlalchemy import SQLAlchemy
 from models import (
     db,
-    Settings,
+    Company,
     Party,
     Invoice,
     InvoiceItem,
@@ -100,6 +100,12 @@ def check_auth():
         return
     if not session.get("user_id"):
         return redirect(url_for("login"))
+    
+    # Enforce company setup
+    if request.endpoint and "company" not in request.endpoint and "import_companies" != request.endpoint:
+        if Company.query.count() == 0:
+            flash("Company profile setup is required to use the software.", "info")
+            return redirect(url_for("company"))
 
 
 db.init_app(app)
@@ -333,6 +339,13 @@ def get_month_name(month_num):
         "December",
     ]
     return months[month_num - 1] if 1 <= month_num <= 12 else ""
+
+
+def get_current_company():
+    company = Company.query.filter_by(is_default=True).first()
+    if not company:
+        company = Company.query.first()
+    return company
 
 
 def sanitize_filename(name):
@@ -749,12 +762,12 @@ def backup():
             writer.writerow([u.username, u.full_name, u.role, "1" if u.is_active else "0"])
         zf.writestr("users.csv", user_data.getvalue())
 
-        settings_data = io.StringIO()
-        writer = csv.writer(settings_data)
-        writer.writerow(["key", "value"])
-        for key in ["company_name", "arn_number", "address", "gstin", "pan", "place_of_supply", "state_code", "logo"]:
-            writer.writerow([key, Settings.get(key, "")])
-        zf.writestr("settings.csv", settings_data.getvalue())
+        companies_data = io.StringIO()
+        writer = csv.writer(companies_data)
+        writer.writerow(["id", "name", "address", "gstin", "pan", "is_default"])
+        for company in Company.query.all():
+            writer.writerow([company.id, company.name, company.address or "", company.gstin or "", company.pan or "", company.is_default])
+        zf.writestr("companies.csv", companies_data.getvalue())
 
         manifest = f"Backup created: {datetime.now().isoformat()}\n"
         manifest += f"Parties: {len(parties)}\n"
@@ -787,55 +800,192 @@ def index():
 @login_required
 def company():
     if request.method == "POST":
-        Settings.set("company_name", request.form.get("company_name"))
-        Settings.set("arn_number", request.form.get("arn_number"))
-        Settings.set("address", request.form.get("address"))
-        Settings.set("gstin", request.form.get("gstin"))
-        Settings.set("pan", request.form.get("pan"))
-        Settings.set("place_of_supply", request.form.get("place_of_supply"))
-        Settings.set("state_code", request.form.get("state_code"))
+        company_id = request.form.get("company_id")
+        company_name = request.form.get("company_name")
+        address = request.form.get("address")
+        gstin = request.form.get("gstin")
+        pan = request.form.get("pan")
+        set_as_default = request.form.get("set_as_default") == "on"
+
+        if company_id:
+            company = db.session.get(Company, int(company_id))
+            if company:
+                company.name = company_name
+                company.address = address
+                company.gstin = gstin
+                company.pan = pan
+        else:
+            current_count = Company.query.count()
+            is_default = current_count == 0
+            
+            company = Company(
+                name=company_name,
+                address=address,
+                gstin=gstin,
+                pan=pan,
+                is_default=is_default
+            )
+            db.session.add(company)
+            db.session.flush()
+            
+            if current_count == 0:
+                pass
+            elif set_as_default:
+                Company.query.filter(Company.id != company.id).update({"is_default": False})
 
         if "logo" in request.files and request.files["logo"].filename:
             logo = request.files["logo"]
-            logo_path = os.path.join(app.config["LOGO_FOLDER"], "logo.png")
+            logo_filename = f"company_{company.id}_logo.png" if company.id else "company_logo.png"
+            logo_path = os.path.join(app.config["LOGO_FOLDER"], logo_filename)
             logo.save(logo_path)
-            Settings.set("logo", "logo.png")
+            if company:
+                company.logo = logo_filename
 
-        flash("Company settings saved successfully", "success")
+        db.session.commit()
+        flash("Company saved successfully", "success")
         return redirect(url_for("company"))
 
-    company_name = Settings.get("company_name", "")
-    arn_number = Settings.get("arn_number", "")
-    address = Settings.get("address", "")
-    gstin = Settings.get("gstin", "")
-    pan = Settings.get("pan", "")
-    place_of_supply = Settings.get("place_of_supply", "")
-    state_code = Settings.get("state_code", "")
-    logo = Settings.get("logo", "")
+    companies = Company.query.order_by(Company.is_default.desc(), Company.name).all()
+    can_delete = len(companies) > 1
+    default_company = Company.query.filter_by(is_default=True).first()
 
     return render_template(
         "company.html",
-        company_name=company_name,
-        arn_number=arn_number,
-        address=address,
-        gstin=gstin,
-        pan=pan,
-        place_of_supply=place_of_supply,
-        state_code=state_code,
-        logo=logo,
+        companies=companies,
+        can_delete=can_delete,
+        default_company=default_company,
     )
+
+
+@app.route("/company/delete/<int:company_id>", methods=["POST"])
+@login_required
+def delete_company(company_id):
+    company = db.session.get(Company, company_id)
+    if not company:
+        flash("Company not found", "danger")
+        return redirect(url_for("company"))
+
+    if company.is_default:
+        flash("Cannot delete default company", "danger")
+        return redirect(url_for("company"))
+
+    if Company.query.count() <= 1:
+        flash("Cannot delete the only company. At least one company is required.", "danger")
+        return redirect(url_for("company"))
+
+    db.session.delete(company)
+    db.session.commit()
+    flash("Company deleted successfully", "success")
+    return redirect(url_for("company"))
+
+
+@app.route("/company/set-default/<int:company_id>", methods=["POST"])
+@login_required
+def set_default_company(company_id):
+    company = db.session.get(Company, company_id)
+    if not company:
+        flash("Company not found", "danger")
+        return redirect(url_for("company"))
+
+    Company.query.update({"is_default": False})
+    company.is_default = True
+    db.session.commit()
+    flash(f"{company.name} set as default", "success")
+    return redirect(url_for("company"))
+
+
+@app.route("/import/companies", methods=["GET", "POST"])
+def import_companies():
+    if request.method == "POST":
+        file = request.files.get("csv_file")
+
+        if not file or file.filename == "":
+            flash("No file selected", "danger")
+            return redirect(url_for("import_companies"))
+
+        if not file.filename.endswith(".csv"):
+            flash("Please upload a CSV file", "danger")
+            return redirect(url_for("import_companies"))
+
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+
+        imported = 0
+        updated = 0
+        errors = []
+
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                name = (row.get("name") or "").strip()
+                gstin = (row.get("gstin") or "").strip().upper()
+                pan = (row.get("pan") or "").strip().upper()
+                address = (row.get("address") or "").strip()
+                is_default_str = (row.get("is_default") or "").strip().lower()
+                is_default = is_default_str in ("1", "true", "yes")
+
+                if not name:
+                    errors.append(f"Row {row_num}: Missing company name")
+                    continue
+
+                existing = Company.query.filter(
+                    (Company.name == name) | (Company.gstin == gstin)
+                ).first()
+
+                if existing:
+                    existing.name = name
+                    if gstin:
+                        existing.gstin = gstin
+                    if pan:
+                        existing.pan = pan
+                    if address:
+                        existing.address = address
+                    if is_default and not existing.is_default:
+                        Company.query.filter(Company.id != existing.id).update({"is_default": False})
+                        existing.is_default = True
+                    updated += 1
+                else:
+                    company = Company(
+                        name=name,
+                        gstin=gstin or None,
+                        pan=pan or None,
+                        address=address or None,
+                        is_default=is_default or (Company.query.count() == 0)
+                    )
+                    db.session.add(company)
+                    if is_default:
+                        db.session.flush()
+                        Company.query.filter(Company.id != company.id).update({"is_default": False})
+                    imported += 1
+
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+
+        if imported > 0 or updated > 0:
+            db.session.commit()
+            flash(f"Successfully imported {imported} new and updated {updated} existing companies", "success")
+
+        if errors:
+            for error in errors[:10]:
+                flash(error, "warning")
+
+        return redirect(url_for("company"))
+
+    return render_template("import_companies.html")
 
 
 @app.route("/delete-logo")
 @login_required
 def delete_logo():
-    logo_filename = Settings.get("logo", "")
-    if logo_filename:
-        logo_path = os.path.join(app.config["LOGO_FOLDER"], logo_filename)
-        if os.path.exists(logo_path):
-            os.remove(logo_path)
-        Settings.set("logo", "")
-    flash("Logo deleted successfully", "success")
+    company_id = request.args.get("company_id", type=int)
+    if company_id:
+        company = db.session.get(Company, company_id)
+        if company and company.logo:
+            logo_path = os.path.join(app.config["LOGO_FOLDER"], company.logo)
+            if os.path.exists(logo_path):
+                os.remove(logo_path)
+            company.logo = None
+            db.session.commit()
+            flash("Logo deleted", "success")
     return redirect(url_for("company"))
 
 
@@ -1036,7 +1186,8 @@ def dashboard():
     this_month_party_stats, top_parties = calculate_top_parties(invoices)
 
     # Miscellaneous data
-    company_name = Settings.get("company_name", "")
+    company = get_current_company()
+    company_name = company.name if company else ""
     greeting = get_greeting()
     trend_months = get_trend_months()
 
@@ -1323,19 +1474,15 @@ def manage_invoices():
 
 @app.route("/invoice/create", methods=["GET", "POST"])
 def create_invoice():
-    parties = Party.query.all()
-
+    parties = Party.query.order_by(Party.name).all()
+    
     if request.method == "POST":
         party_id = request.form.get("party_id")
+        invoice_no = request.form.get("invoice_no", "").strip()
         reference_serial_no = request.form.get("reference_serial_no", "").strip()
-        sac_hsn_code = request.form.get("sac_hsn_code", "").strip()
 
         if not party_id:
             flash("Party selection is required.", "danger")
-            return redirect(url_for("create_invoice"))
-
-        if not sac_hsn_code:
-            flash("SAC/HSN code is required.", "danger")
             return redirect(url_for("create_invoice"))
 
         if reference_serial_no:
@@ -1354,7 +1501,6 @@ def create_invoice():
         ).date()
         tax_type = request.form.get("tax_type")
         place_of_supply = request.form.get("place_of_supply")
-        sac_hsn_code = request.form.get("sac_hsn_code")
         reverse_charge = float(request.form.get("reverse_charge") or 0)
         is_rcm = request.form.get("is_rcm") == "on"
         distributor_code = request.form.get("distributor_code", "").strip()
@@ -1364,12 +1510,12 @@ def create_invoice():
             return redirect(url_for("create_invoice"))
 
         invoice = Invoice(
+            invoice_no=invoice_no,
             reference_serial_no=reference_serial_no,
             invoice_date=invoice_date,
             party_id=party_id,
             tax_type=tax_type,
             place_of_supply=place_of_supply,
-            sac_hsn_code=sac_hsn_code,
             reverse_charge=reverse_charge,
             is_rcm=is_rcm,
             distributor_code=distributor_code,
@@ -1385,10 +1531,17 @@ def create_invoice():
             invoice.party_state = party.state
             invoice.party_state_code = party.state_code
 
+        # Local copy of company details from form
+        invoice.company_name = request.form.get("company_name", "")
+        invoice.company_address = request.form.get("company_address", "")
+        invoice.company_gstin = request.form.get("company_gstin", "")
+        invoice.company_pan = request.form.get("company_pan", "")
+
         db.session.add(invoice)
         db.session.flush()
 
         items_desc = request.form.getlist("item_description[]")
+        items_sac_hsn = request.form.getlist("item_sac_hsn[]")
         items_taxable = request.form.getlist("item_taxable_value[]")
         items_cgst_rate = request.form.getlist("item_cgst_rate[]")
         items_sgst_rate = request.form.getlist("item_sgst_rate[]")
@@ -1400,6 +1553,7 @@ def create_invoice():
                 cgst_rate = float(items_cgst_rate[i]) if i < len(items_cgst_rate) else 0
                 sgst_rate = float(items_sgst_rate[i]) if i < len(items_sgst_rate) else 0
                 igst_rate = float(items_igst_rate[i]) if i < len(items_igst_rate) else 0
+                sac_hsn = items_sac_hsn[i] if i < len(items_sac_hsn) else None
 
                 is_valid, error_msg = validate_tax_rates(
                     tax_type, is_rcm, cgst_rate, sgst_rate, igst_rate
@@ -1415,6 +1569,7 @@ def create_invoice():
                 item = InvoiceItem(
                     invoice_id=invoice.id,
                     description=items_desc[i],
+                    sac_hsn_code=sac_hsn,
                     taxable_value=taxable,
                     cgst_rate=cgst_rate,
                     cgst_amt=cgst_amt,
@@ -1429,22 +1584,28 @@ def create_invoice():
         flash("Invoice created successfully", "success")
         return redirect(url_for("manage_invoices"))
 
-    return render_template("create_invoice.html", parties=parties)
+    company = get_current_company()
+    company = get_current_company()
+    companies = Company.query.order_by(Company.name).all()
+    return render_template("create_invoice.html", parties=parties, company=company, companies=companies)
 
 
 @app.route("/invoice/<int:invoice_id>")
 def view_invoice(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
+    
+    # Use only data from the invoice table
+    settings = {
+        "company_name": invoice.company_name or "Not set",
+        "address": invoice.company_address or "",
+        "gstin": invoice.company_gstin or "",
+        "pan": invoice.company_pan or "",
+        "logo": "",
+    }
     return render_template(
         "invoice_preview.html",
         invoice=invoice,
-        settings={
-            "company_name": Settings.get("company_name", ""),
-            "address": Settings.get("address", ""),
-            "gstin": Settings.get("gstin", ""),
-            "pan": Settings.get("pan", ""),
-            "logo": Settings.get("logo", ""),
-        },
+        settings=settings,
     )
 
 
@@ -1480,18 +1641,21 @@ def view_export(filename):
 def generate_pdf(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
 
+    # Use only data from the invoice table
+    settings = {
+        "company_name": invoice.company_name or "Not set",
+        "address": invoice.company_address or "",
+        "gstin": invoice.company_gstin or "",
+        "pan": invoice.company_pan or "",
+        "logo": "",
+        "place_of_supply": invoice.place_of_supply or "",
+        "state_code": "",
+    }
+
     html_content = render_template(
         "invoice_pdf_template.html",
         invoice=invoice,
-        settings={
-            "company_name": Settings.get("company_name", ""),
-            "address": Settings.get("address", ""),
-            "gstin": Settings.get("gstin", ""),
-            "pan": Settings.get("pan", ""),
-            "logo": Settings.get("logo", ""),
-            "place_of_supply": Settings.get("place_of_supply", ""),
-            "state_code": Settings.get("state_code", ""),
-        },
+        settings=settings,
     )
 
     pdf_path = get_export_path(invoice)
@@ -1533,25 +1697,38 @@ def batch_export():
     )
 
     exported_count = 0
+    company = get_current_company()
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for invoice_id in invoice_ids:
             invoice = db.session.get(Invoice, int(invoice_id))
             if not invoice or not invoice.invoice_no or not invoice.locked:
                 continue
 
+            if invoice.company_name:
+                settings = {
+                    "company_name": invoice.company_name,
+                    "address": invoice.company_address or "",
+                    "gstin": invoice.company_gstin or "",
+                    "pan": invoice.company_pan or "",
+                    "logo": "",
+                    "place_of_supply": invoice.place_of_supply or "",
+                    "state_code": "",
+                }
+            else:
+                settings = {
+                    "company_name": "Not set",
+                    "address": "",
+                    "gstin": "",
+                    "pan": "",
+                    "logo": "",
+                    "place_of_supply": "",
+                    "state_code": "",
+                }
+
             html_content = render_template(
                 "invoice_pdf_template.html",
                 invoice=invoice,
-                settings={
-                    "company_name": Settings.get("company_name", ""),
-                    "arn_number": Settings.get("arn_number", ""),
-                    "address": Settings.get("address", ""),
-                    "gstin": Settings.get("gstin", ""),
-                    "pan": Settings.get("pan", ""),
-                    "logo": Settings.get("logo", ""),
-                    "place_of_supply": Settings.get("place_of_supply", ""),
-                    "state_code": Settings.get("state_code", ""),
-                },
+                settings=settings,
             )
             pdf_path = get_export_path(invoice)
             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
@@ -1724,6 +1901,9 @@ def import_parties():
 
 @app.route("/import/invoices", methods=["GET", "POST"])
 def import_invoices():
+    if request.method == "GET":
+        return render_template("import_invoices.html")
+
     if request.method == "POST":
         file = request.files.get("csv_file")
 
@@ -1741,6 +1921,10 @@ def import_invoices():
         imported = 0
         updated = 0
         errors = []
+        processed_invoices = set() # Track invoices whose items have been cleared
+
+        # Get default company for auto-populating local copies
+        default_company = get_current_company()
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
@@ -1807,7 +1991,7 @@ def import_invoices():
                     invoice.party_id = party.id
                     invoice.tax_type = tax_type
                     invoice.place_of_supply = place_of_supply
-                    invoice.sac_hsn_code = sac_hsn_code
+                    # sac_hsn_code removed from Invoice table
                     invoice.reverse_charge = reverse_charge
                     invoice.is_rcm = is_rcm
                     invoice.distributor_code = distributor_code
@@ -1828,24 +2012,35 @@ def import_invoices():
                         party_id=party.id,
                         tax_type=tax_type,
                         place_of_supply=place_of_supply,
-                        sac_hsn_code=sac_hsn_code,
+                        # sac_hsn_code removed from Invoice table
                         reverse_charge=reverse_charge,
                         is_rcm=is_rcm,
                         distributor_code=distributor_code,
                     )
-                    # Local copy
+                    # Local copy from Party
                     invoice.party_name = party.name
                     invoice.party_address = party.address
                     invoice.party_gstin = party.gstin
                     invoice.party_pan = party.pan
                     invoice.party_state = party.state
                     invoice.party_state_code = party.state_code
+                    
+                    # Auto-populate Company details from default company
+                    if default_company:
+                        invoice.company_name = default_company.name
+                        invoice.company_address = default_company.address
+                        invoice.company_gstin = default_company.gstin
+                        invoice.company_pan = default_company.pan
+                    
                     db.session.add(invoice)
                     db.session.flush()
                     imported += 1
 
                 if invoice:
-                    InvoiceItem.query.filter_by(invoice_id=invoice.id).delete()
+                    # Fix: Only delete items once per invoice in the CSV
+                    if invoice.id not in processed_invoices:
+                        InvoiceItem.query.filter_by(invoice_id=invoice.id).delete()
+                        processed_invoices.add(invoice.id)
 
                 is_valid, error_msg = validate_tax_rates(
                     tax_type, is_rcm, cgst_rate, sgst_rate, igst_rate
@@ -1873,6 +2068,7 @@ def import_invoices():
                 item = InvoiceItem(
                     invoice_id=invoice.id,
                     description=description,
+                    sac_hsn_code=sac_hsn_code, # Added per-item SAC/HSN
                     taxable_value=taxable_value,
                     cgst_rate=cgst_rate,
                     cgst_amt=cgst_amt,
@@ -1894,81 +2090,10 @@ def import_invoices():
             )
 
         if errors:
-            flash(
-                f"Failed to import {len(errors)} rows. See below for first 10 errors:",
-                "warning",
-            )
             for error in errors[:10]:
-                flash(error, "info")
+                flash(error, "warning")
 
         return redirect(url_for("manage_invoices"))
-
-    return render_template("import_invoices.html")
-
-
-@app.route("/invoice/sync-party/<int:invoice_id>")
-def sync_party(invoice_id):
-    invoice = Invoice.query.get_or_404(invoice_id)
-    if invoice.locked:
-        return jsonify(
-            {"success": False, "message": "Locked invoices cannot be synced"}
-        ), 403
-    party = db.session.get(Party, invoice.party_id)
-    if not party:
-        return jsonify({"success": False, "message": "Linked party not found"}), 404
-    invoice.party_name = party.name
-    invoice.party_address = party.address
-    invoice.party_gstin = party.gstin
-    invoice.party_pan = party.pan
-    invoice.party_state = party.state
-    invoice.party_state_code = party.state_code
-    db.session.commit()
-    return jsonify(
-        {
-            "success": True,
-            "data": {
-                "name": invoice.party_name,
-                "address": invoice.party_address,
-                "gstin": invoice.party_gstin,
-                "pan": invoice.party_pan,
-                "state": invoice.party_state,
-                "state_code": invoice.party_state_code,
-            },
-        }
-    )
-
-
-@app.route("/invoice/batch-sync", methods=["POST"])
-def batch_sync():
-    ids_raw = request.form.get("invoice_ids", "")
-    invoice_ids = ids_raw.split(",") if ids_raw else []
-    if not invoice_ids or invoice_ids == [""]:
-        flash("No invoices selected", "warning")
-        return redirect(url_for("manage_invoices"))
-    synced_count, locked_count = 0, 0
-    for inv_id in invoice_ids:
-        inv = db.session.get(Invoice, int(inv_id))
-        if inv:
-            if inv.locked:
-                locked_count += 1
-                continue
-            party = db.session.get(Party, inv.party_id)
-            if party:
-                inv.party_name = party.name
-                inv.party_address = party.address
-                inv.party_gstin = party.gstin
-                inv.party_pan = party.pan
-                inv.party_state = party.state
-                inv.party_state_code = party.state_code
-                synced_count += 1
-    db.session.commit()
-    if synced_count > 0:
-        flash(
-            f"Successfully synced party details for {synced_count} invoices", "success"
-        )
-    if locked_count > 0:
-        flash(f"Skipped {locked_count} locked invoices", "info")
-    return redirect(url_for("manage_invoices"))
 
 
 @app.route("/invoice/batch-lock", methods=["POST"])
@@ -1998,6 +2123,37 @@ def batch_lock():
             f"Skipped {skipped_count} invoice(s) - already locked or without invoice number",
             "info",
         )
+    return redirect(url_for("manage_invoices"))
+
+
+@app.route("/invoice/batch-sync", methods=["POST"])
+def batch_sync():
+    ids_raw = request.form.get("invoice_ids", "")
+    invoice_ids = ids_raw.split(",") if ids_raw else []
+    if not invoice_ids or invoice_ids == [""]:
+        flash("No invoices selected", "warning")
+        return redirect(url_for("manage_invoices"))
+    synced_count, locked_count = 0, 0
+    for inv_id in invoice_ids:
+        inv = db.session.get(Invoice, int(inv_id))
+        if inv:
+            if inv.locked:
+                locked_count += 1
+                continue
+            party = db.session.get(Party, inv.party_id)
+            if party:
+                inv.party_name = party.name
+                inv.party_address = party.address
+                inv.party_gstin = party.gstin
+                inv.party_pan = party.pan
+                inv.party_state = party.state
+                inv.party_state_code = party.state_code
+                synced_count += 1
+    db.session.commit()
+    if synced_count > 0:
+        flash(f"Synced {synced_count} invoice(s)", "success")
+    if locked_count > 0:
+        flash(f"Skipped {locked_count} locked invoice(s)", "info")
     return redirect(url_for("manage_invoices"))
 
 
@@ -2059,8 +2215,8 @@ def edit_invoice(invoice_id):
     if invoice.locked:
         flash("This invoice is locked and cannot be edited.", "danger")
         return redirect(url_for("manage_invoices"))
-    parties = Party.query.all()
-
+    parties = Party.query.order_by(Party.name).all()
+    
     if request.method == "POST":
         invoice_no = request.form.get("invoice_no", "").strip()
         reference_serial_no = request.form.get("reference_serial_no", "").strip()
@@ -2087,18 +2243,40 @@ def edit_invoice(invoice_id):
 
         invoice.invoice_no = invoice_no or None
         invoice.reference_serial_no = reference_serial_no or None
-        invoice.party_id = request.form.get("party_id")
+        
+        # Update party details if party changed
+        party_id = request.form.get("party_id")
+        if party_id and int(party_id) != invoice.party_id:
+            party = db.session.get(Party, party_id)
+            if party:
+                invoice.party_id = party.id
+                invoice.party_name = party.name
+                invoice.party_address = party.address
+                invoice.party_gstin = party.gstin
+                invoice.party_pan = party.pan
+                invoice.party_state = party.state
+                invoice.party_state_code = party.state_code
+
+        # Update company details if company changed
+        company_id = request.form.get("company_id")
+        if company_id:
+            company = db.session.get(Company, int(company_id))
+            if company:
+                invoice.company_name = company.name
+                invoice.company_address = company.address
+                invoice.company_gstin = company.gstin
+                invoice.company_pan = company.pan
+        
         invoice.invoice_date = datetime.strptime(
             request.form.get("invoice_date"), "%Y-%m-%d"
         ).date()
         invoice.tax_type = request.form.get("tax_type")
         invoice.place_of_supply = request.form.get("place_of_supply")
-        invoice.sac_hsn_code = request.form.get("sac_hsn_code")
         invoice.reverse_charge = float(request.form.get("reverse_charge") or 0)
         invoice.is_rcm = request.form.get("is_rcm") == "on"
         invoice.distributor_code = request.form.get("distributor_code", "").strip()
 
-        # Local copy overrides
+        # Local copy overrides (keep existing ones if party didn't change or for fine-tuning)
         invoice.party_name = request.form.get("party_name", "").strip()
         invoice.party_address = request.form.get("party_address", "").strip()
         invoice.party_gstin = request.form.get("party_gstin", "").strip().upper()
@@ -2117,6 +2295,7 @@ def edit_invoice(invoice_id):
             db.session.delete(item)
 
         items_desc = request.form.getlist("item_description[]")
+        items_sac_hsn = request.form.getlist("item_sac_hsn[]")
         items_taxable = request.form.getlist("item_taxable_value[]")
         items_cgst_rate = request.form.getlist("item_cgst_rate[]")
         items_sgst_rate = request.form.getlist("item_sgst_rate[]")
@@ -2131,6 +2310,7 @@ def edit_invoice(invoice_id):
                 cgst_rate = float(items_cgst_rate[i]) if i < len(items_cgst_rate) else 0
                 sgst_rate = float(items_sgst_rate[i]) if i < len(items_sgst_rate) else 0
                 igst_rate = float(items_igst_rate[i]) if i < len(items_igst_rate) else 0
+                sac_hsn = items_sac_hsn[i] if i < len(items_sac_hsn) else None
 
                 is_valid, error_msg = validate_tax_rates(
                     tax_type, is_rcm, cgst_rate, sgst_rate, igst_rate
@@ -2146,6 +2326,7 @@ def edit_invoice(invoice_id):
                 item = InvoiceItem(
                     invoice_id=invoice.id,
                     description=items_desc[i],
+                    sac_hsn_code=sac_hsn,
                     taxable_value=taxable,
                     cgst_rate=cgst_rate,
                     cgst_amt=cgst_amt,
@@ -2160,7 +2341,8 @@ def edit_invoice(invoice_id):
         flash("Invoice updated successfully", "success")
         return redirect(url_for("manage_invoices"))
 
-    return render_template("edit_invoice.html", invoice=invoice, parties=parties)
+    companies = Company.query.order_by(Company.name).all()
+    return render_template("edit_invoice.html", invoice=invoice, parties=parties, companies=companies)
 
 
 def generate_credit_note_numbers():
@@ -2346,6 +2528,11 @@ def create_credit_note():
         credit_note.party_state = invoice.party_state
         credit_note.party_state_code = invoice.party_state_code
 
+        credit_note.company_name = invoice.company_name
+        credit_note.company_address = invoice.company_address
+        credit_note.company_gstin = invoice.company_gstin
+        credit_note.company_pan = invoice.company_pan
+
         db.session.add(credit_note)
         db.session.flush()
 
@@ -2500,18 +2687,32 @@ def preview_credit_note(credit_note_id):
 def generate_credit_note_pdf(credit_note_id):
     credit_note = CreditNote.query.get_or_404(credit_note_id)
 
+    if credit_note.company_name:
+        settings = {
+            "company_name": credit_note.company_name,
+            "address": credit_note.company_address or "",
+            "gstin": credit_note.company_gstin or "",
+            "pan": credit_note.company_pan or "",
+            "logo": "",
+            "place_of_supply": credit_note.place_of_supply or "",
+            "state_code": "",
+        }
+    else:
+        company = get_current_company()
+        settings = {
+            "company_name": company.name if company else "",
+            "address": company.address if company else "",
+            "gstin": company.gstin if company else "",
+            "pan": company.pan if company else "",
+            "logo": company.logo if company else "",
+            "place_of_supply": "",
+            "state_code": "",
+        }
+
     html_content = render_template(
         "credit_note_pdf_template.html",
         credit_note=credit_note,
-        settings={
-            "company_name": Settings.get("company_name", ""),
-            "address": Settings.get("address", ""),
-            "gstin": Settings.get("gstin", ""),
-            "pan": Settings.get("pan", ""),
-            "logo": Settings.get("logo", ""),
-            "place_of_supply": Settings.get("place_of_supply", ""),
-            "state_code": Settings.get("state_code", ""),
-        },
+        settings=settings,
     )
 
     fy_short = get_fy_short()
@@ -2574,17 +2775,17 @@ def max_filter(value):
 def inject_now():
     from datetime import datetime, timezone
 
+    company = get_current_company()
     return dict(
         current_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         settings={
-            "company_name": Settings.get("company_name", ""),
-            "arn_number": Settings.get("arn_number", ""),
-            "address": Settings.get("address", ""),
-            "gstin": Settings.get("gstin", ""),
-            "pan": Settings.get("pan", ""),
-            "logo": Settings.get("logo", ""),
-            "place_of_supply": Settings.get("place_of_supply", ""),
-            "state_code": Settings.get("state_code", ""),
+            "company_name": company.name if company else "",
+            "address": company.address if company else "",
+            "gstin": company.gstin if company else "",
+            "pan": company.pan if company else "",
+            "logo": company.logo if company else "",
+            "place_of_supply": "",
+            "state_code": "",
         },
     )
 

@@ -94,9 +94,6 @@ class InvoiceForm(FlaskForm):
         validators=[DataRequired()],
     )
     place_of_supply = StringField("Place of Supply", validators=[Length(max=50)])
-    sac_hsn_code = StringField(
-        "SAC/HSN Code", validators=[DataRequired(), Length(max=20)]
-    )
     reverse_charge = FloatField(
         "Reverse Charge %", validators=[NumberRange(min=0, max=100)], default=0
     )
