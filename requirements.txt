@@ -8,3 +8,4 @@ psycopg==3.3.3
 bcrypt==5.0.0
 Flask-WTF==1.2.2
 python-dateutil==2.9.0.post0
+pytest==9.0.3

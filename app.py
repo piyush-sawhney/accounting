@@ -1818,6 +1818,25 @@ def delete_invoice(invoice_id):
     return redirect(url_for("dashboard"))
 
 
+@app.route("/exports/view/<path:filename>")
+def view_export(filename):
+    file_path = os.path.join(app.config["EXPORT_FOLDER"], filename)
+    if not os.path.exists(file_path):
+        return "File not found", 404
+    
+    # Determine mimetype based on extension
+    if filename.endswith(".pdf"):
+        mimetype = "application/pdf"
+    elif filename.endswith(".xlsx"):
+        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif filename.endswith(".zip"):
+        mimetype = "application/zip"
+    else:
+        mimetype = "application/octet-stream"
+        
+    return send_file(file_path, as_attachment=False, mimetype=mimetype)
+
+
 @app.route("/invoice/pdf/<int:invoice_id>")
 def generate_pdf(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
@@ -1841,12 +1860,7 @@ def generate_pdf(invoice_id):
 
     pdfkit.from_string(html_content, pdf_path)
 
-    download_name = (
-        f"{invoice.invoice_no}.pdf"
-        if invoice.invoice_no
-        else f"invoice_{invoice.id}.pdf"
-    )
-    return send_file(pdf_path, as_attachment=True, download_name=download_name)
+    return send_file(pdf_path, as_attachment=False, mimetype='application/pdf')
 
 
 @app.route("/invoice/preview-html/<int:invoice_id>")
@@ -1914,7 +1928,7 @@ def batch_export():
         flash("No locked invoices with invoice numbers to export", "warning")
         return redirect(url_for("manage_invoices"))
 
-    return send_file(zip_path, as_attachment=True, download_name=f"invoices_batch.zip")
+    return send_file(zip_path, as_attachment=False, download_name=f"invoices_batch.zip")
 
 
 @app.route("/batch/export/excel", methods=["POST"])
@@ -1985,7 +1999,7 @@ def batch_export_excel():
     return make_response(
         send_file(
             output,
-            as_attachment=True,
+             as_attachment=False,
             download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )

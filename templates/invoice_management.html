@@ -92,13 +92,13 @@
             </div>
             <div class="col-auto ms-auto d-flex align-items-center gap-3">
                 <span id="selectedCount" class="badge bg-dark">0 Selected</span>
-                <form id="batchExportForm" action="{{ url_for('batch_export') }}" method="POST">
+                <form id="batchExportForm" action="{{ url_for('batch_export') }}" method="POST" target="_blank">
                     <input type="hidden" name="invoice_ids" id="export_ids">
                     <button type="submit" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
                     </button>
                 </form>
-                <form id="batchExportExcelForm" action="{{ url_for('batch_export_excel') }}" method="POST">
+                <form id="batchExportExcelForm" action="{{ url_for('batch_export_excel') }}" method="POST" target="_blank">
                     <input type="hidden" name="invoice_ids" id="excel_ids">
                     <button type="submit" class="btn btn-sm btn-success">
                         <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
@@ -209,7 +209,7 @@
                                     <a href="{{ url_for('edit_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-warning" title="Edit"><i class="bi bi-pencil"></i></a>
                                     {% endif %}
                                     {% if invoice.invoice_no %}
-                                    <a href="{{ url_for('generate_pdf', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-danger" title="PDF"><i class="bi bi-file-pdf"></i></a>
+                                     <a href="{{ url_for('generate_pdf', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-danger" title="PDF" target="_blank"><i class="bi bi-file-pdf"></i></a>
                                     {% endif %}
                                 </div>
                             </td>
