@@ -19,7 +19,7 @@ from flask import (
     g,
 )
 from werkzeug.utils import secure_filename
-from weasyprint import HTML
+import pdfkit
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from flask_sqlalchemy import SQLAlchemy
@@ -1839,7 +1839,7 @@ def generate_pdf(invoice_id):
     pdf_path = get_export_path(invoice)
     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
 
-    HTML(string=html_content).write_pdf(pdf_path)
+    pdfkit.from_string(html_content, pdf_path)
 
     download_name = (
         f"{invoice.invoice_no}.pdf"
@@ -1903,7 +1903,7 @@ def batch_export():
             pdf_path = get_export_path(invoice)
             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
 
-            HTML(string=html_content).write_pdf(pdf_path)
+            pdfkit.from_string(html_content, pdf_path)
 
             zip_filename = os.path.basename(pdf_path)
             zip_file.write(pdf_path, zip_filename)
@@ -2879,7 +2879,7 @@ def generate_credit_note_pdf(credit_note_id):
     )
     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
 
-    HTML(string=html_content).write_pdf(pdf_path)
+    pdfkit.from_string(html_content, pdf_path)
 
     download_name = (
         f"{credit_note.credit_note_no}.pdf"

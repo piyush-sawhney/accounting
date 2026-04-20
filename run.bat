@@ -38,12 +38,20 @@ if "%DB_TYPE%"=="postgres" (
     set DATABASE_URL=sqlite:///gst_invoices.db
 )
 
-REM Install dependencies if needed
+REM Create virtual environment if not exists
 if not exist "venv" (
-    echo Installing dependencies...
-    pip install -r requirements.txt
-    echo.
+    echo Creating virtual environment...
+    python -m venv venv
 )
+
+REM Activate virtual environment
+echo Activating virtual environment...
+call venv\Scripts\activate
+
+REM Install dependencies if needed
+echo Installing dependencies...
+pip install -r requirements.txt
+echo.
 
 REM Create database if PostgreSQL
 if "%DB_TYPE%"=="postgres" (
