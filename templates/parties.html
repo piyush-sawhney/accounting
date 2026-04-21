@@ -3,8 +3,7 @@
 {% block title %}Parties - Invoice Management Software{% endblock %}
 
 {% block content %}
-<div class="col-md-10 py-4">
-    <div class="container-fluid">
+<div class="container-fluid py-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -38,7 +37,7 @@
         </div>
         
         <div class="card">
-            <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+            <div class="card-header bg-white border-bottom-0 pt-4 pb-2">
                 <h5 class="mb-3">Parties</h5>
             </div>
             <div class="card-body p-0">
@@ -108,73 +107,6 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="addPartyModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add New Party</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="{{ url_for('parties.parties') }}">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Party Name *</label>
-                        <input type="text" name="name" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">GSTIN *</label>
-                        <input type="text" name="gstin" class="form-control" required placeholder="e.g., 27AABCU9603R1ZM">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">AMC Code (Optional)</label>
-                        <input type="text" name="amc_code" class="form-control" placeholder="e.g., AXISMF001">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">PAN (Optional)</label>
-                        <input type="text" name="pan" class="form-control" placeholder="e.g., AACTA5925A">
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">State</label>
-                            <input type="text" name="state" class="form-control">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">State Code</label>
-                            <input type="text" name="state_code" class="form-control" placeholder="e.g., 27">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Address</label>
-                        <textarea name="address" class="form-control" rows="2"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">Add Party</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="deletePartyModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title">Confirm Delete</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-0">Are you sure you want to delete party <strong id="deletePartyName"></strong>?</p>
-            </div>
-            <div class="modal-footer border-0">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <a href="" type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</a>
             </div>
         </div>
     </div>

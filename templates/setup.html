@@ -9,32 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/theme.css') }}" rel="stylesheet">
     <style>
-        :root {
-            --m3-scheme-primary: #4f46e5;
-            --m3-scheme-on-primary: #ffffff;
-            --m3-scheme-primary-container: #e0e7ff;
-            --m3-scheme-on-primary-container: #312e81;
-            --m3-scheme-surface: #ffffff;
-            --m3-scheme-on-surface: #1e293b;
-            --m3-scheme-surface-variant: #f1f5f9;
-            --m3-scheme-on-surface-variant: #475569;
-            --m3-scheme-outline: #cbd5e1;
-            --m3-scheme-background: #f8fafc;
-            
-            --m3-elevation-2: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
-            --m3-elevation-4: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
-            
-            --m3-radius-small: 8px;
-            --m3-radius-medium: 12px;
-            --m3-radius-large: 16px;
-            --m3-radius-xl: 24px;
-            
-            --m3-motion-duration-short: 150ms;
-        }
-        
-        * { box-sizing: border-box; }
-        
         body {
             margin: 0;
             padding: 0;
@@ -42,22 +18,22 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 50%, #f1f5f9 100%);
-            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--md-sys-color-primary-container) 0%, var(--md-sys-color-tertiary-container) 50%, var(--md-sys-color-surface-variant) 100%);
         }
         
         .setup-card {
-            background: var(--m3-scheme-surface);
-            border-radius: var(--m3-radius-xl);
-            box-shadow: var(--m3-elevation-4);
+            background: var(--md-sys-color-surface);
+            border-radius: var(--md-sys-shape-corner-extra-large);
+            box-shadow: var(--md-sys-elevation-4);
             width: 100%;
             max-width: 480px;
             padding: 2.5rem;
-            transition: box-shadow var(--m3-motion-duration-short) ease;
+            transition: all var(--md-sys-motion-duration-medium-2) var(--md-sys-motion-easing-emphasized);
         }
         
         .setup-card:hover {
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--md-sys-elevation-5);
+            transform: translateY(-2px);
         }
         
         .setup-icon {
@@ -77,80 +53,27 @@
             object-fit: contain;
         }
         
-        .setup-icon i {
-            font-size: 1.75rem;
-            color: var(--m3-scheme-on-primary-container);
-        }
-        
         .setup-title {
             font-size: 1.5rem;
             font-weight: 600;
-            color: var(--m3-scheme-on-surface);
+            color: var(--md-sys-color-on-surface);
             margin-bottom: 0.5rem;
             text-align: center;
         }
         
         .setup-subtitle {
-            color: var(--m3-scheme-on-surface-variant);
+            color: var(--md-sys-color-on-surface-variant);
             text-align: center;
             margin-bottom: 2rem;
-        }
-        
-        .form-label {
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: var(--m3-scheme-on-surface-variant);
-            margin-bottom: 0.375rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .form-control {
-            border: 1px solid var(--m3-scheme-outline);
-            border-radius: var(--m3-radius-small);
-            padding: 0.75rem 1rem;
-            font-size: 0.9375rem;
-            background-color: var(--m3-scheme-surface);
-            transition: all var(--m3-motion-duration-short) ease;
-            color: var(--m3-scheme-on-surface);
-        }
-        
-        .form-control:focus {
-            border-color: var(--m3-scheme-primary);
-            box-shadow: 0 0 0 3px var(--m3-scheme-primary-container);
-            outline: none;
         }
         
         .section-label {
             font-size: 0.8125rem;
             font-weight: 600;
-            color: var(--m3-scheme-on-surface);
+            color: var(--md-sys-color-on-surface);
             margin-bottom: 1rem;
             padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--m3-scheme-outline);
-        }
-        
-        .btn-primary {
-            background-color: var(--m3-scheme-primary);
-            color: var(--m3-scheme-on-primary);
-            border: none;
-            border-radius: var(--m3-radius-small);
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-            font-size: 0.9375rem;
-            width: 100%;
-            transition: all var(--m3-motion-duration-short) ease;
-            cursor: pointer;
-        }
-        
-        .btn-primary:hover {
-            background-color: #4338ca;
-            box-shadow: var(--m3-elevation-2);
-        }
-        
-        .btn-primary:focus {
-            box-shadow: 0 0 0 2px var(--m3-scheme-surface), 0 0 0 4px var(--m3-scheme-primary);
-            outline: none;
+            border-bottom: 1px solid var(--md-sys-color-outline-variant);
         }
     </style>
 </head>

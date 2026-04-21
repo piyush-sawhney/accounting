@@ -3,8 +3,7 @@
 {% block title %}User Management - GST Invoice Management{% endblock %}
 
 {% block content %}
-<div class="col-md-10 py-4">
-    <div class="container-fluid">
+<div class="container-fluid py-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -88,14 +87,14 @@
                             </td>
                             <td class="text-muted">{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '-' }}</td>
                             <td>
-                                {% if user.role == 'admin' %}
-                                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#generateCodesModal{{ user.id }}">
-                                    <i class="bi bi-arrow-repeat"></i> 
-                                    {{ user.recovery_codes|length }} codes
-                                </button>
-                                {% else %}
-                                <span class="text-muted">-</span>
-                                {% endif %}
+                                 {% if user.id == session.get('user_id') %}
+                                 <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#generateCodesModal{{ user.id }}">
+                                     <i class="bi bi-arrow-repeat"></i> 
+                                     Generate My Codes
+                                 </button>
+                                 {% else %}
+                                 <span class="text-muted">-</span>
+                                 {% endif %}
                             </td>
                             <td class="text-end">
                                 <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" 
@@ -113,7 +112,6 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
         </div>
     </div>
 </div>
@@ -123,13 +121,12 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Generate Recovery Codes - {{ user.username }}</h5>
+                <h5 class="modal-title">Generate My Recovery Codes</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>This will invalidate all unused recovery codes and generate 5 new ones.</p>
+                <p>This will invalidate all unused recovery codes and generate 5 new ones for your account.</p>
                 <form action="{{ url_for('admin.generate_recovery_codes') }}" method="POST">
-                    <input type="hidden" name="user_id" value="{{ user.id }}">
                     <button type="submit" class="btn btn-primary w-100">Generate New Codes</button>
                 </form>
             </div>

@@ -3,8 +3,7 @@
 {% block title %}Company - Invoice Management Software{% endblock %}
 
 {% block content %}
-<div class="col-md-10 py-4">
-    <div class="container-fluid">
+<div class="container-fluid py-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -98,7 +97,6 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
         </div>
     </div>
 </div>

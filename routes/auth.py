@@ -80,10 +80,10 @@ def setup():
             db.session.add(rc)
 
         db.session.commit()
-
+        
         session["setup_codes"] = codes
-        ConfigStore.set("setup_codes", ",".join(codes))
-
+        # Removed ConfigStore.set for setup_codes to ensure consistency with admin management
+        
         flash("Setup complete!", "success")
         return redirect(url_for("auth.setup_success"))
 
@@ -92,10 +92,17 @@ def setup():
 
 @auth_bp.route("/setup-success")
 def setup_success():
+    from flask import session
     codes = session.get("setup_codes", [])
     if not codes:
-        codes_str = ConfigStore.get("setup_codes", "")
-        codes = [c for c in codes_str.split(",") if c] if codes_str else []
+        # Fallback: get codes for the only user (since this is setup)
+        user = User.query.first()
+        if user:
+            rcs = RecoveryCode.query.filter_by(user_id=user.id, is_used=False).all()
+            codes = [rc.code for rc in rcs]
+        else:
+            return redirect(url_for("auth.setup"))
+            
     if not codes:
         return redirect(url_for("auth.setup"))
     return render_template("setup_success.html", codes=codes)

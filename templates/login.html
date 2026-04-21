@@ -1,317 +1,143 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Invoice Management Software</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --m3-scheme-primary: #4f46e5;
-            --m3-scheme-on-primary: #ffffff;
-            --m3-scheme-primary-container: #e0e7ff;
-            --m3-scheme-on-primary-container: #312e81;
-            --m3-scheme-surface: #ffffff;
-            --m3-scheme-on-surface: #1e293b;
-            --m3-scheme-surface-variant: #f1f5f9;
-            --m3-scheme-on-surface-variant: #475569;
-            --m3-scheme-outline: #cbd5e1;
-            --m3-scheme-background: #f8fafc;
-            --m3-scheme-warning: #d97706;
-            --m3-scheme-on-warning: #ffffff;
-            
-            --m3-elevation-1: 0 1px 2px 0 rgba(0,0,0,0.05);
-            --m3-elevation-2: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
-            --m3-elevation-4: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
-            
-            --m3-radius-small: 8px;
-            --m3-radius-medium: 12px;
-            --m3-radius-large: 16px;
-            --m3-radius-xl: 24px;
-            
-            --m3-motion-duration-short: 150ms;
-        }
-        
-        * {
-            box-sizing: border-box;
-        }
-        
-        body {
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 50%, #f1f5f9 100%);
-            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        
-        .login-card {
-            background: var(--m3-scheme-surface);
-            border-radius: var(--m3-radius-xl);
-            box-shadow: var(--m3-elevation-4);
-            width: 100%;
-            max-width: 420px;
-            padding: 2.5rem;
-            transition: box-shadow var(--m3-motion-duration-short) ease;
-        }
-        
-        .login-card:hover {
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-        }
-        
-        .login-icon {
-            width: 100%;
-            max-width: 200px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1.5rem;
-            overflow: hidden;
-        }
-        
-        .login-icon img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-        
-        .login-icon i {
-            font-size: 1.75rem;
-            color: var(--m3-scheme-on-primary-container);
-        }
-        
-        .login-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--m3-scheme-on-surface);
-            margin-bottom: 0.5rem;
-            text-align: center;
-        }
-        
-        .login-subtitle {
-            color: var(--m3-scheme-on-surface-variant);
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        
-        .form-label {
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: var(--m3-scheme-on-surface-variant);
-            margin-bottom: 0.375rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .form-control {
-            border: 1px solid var(--m3-scheme-outline);
-            border-radius: var(--m3-radius-small);
-            padding: 0.75rem 1rem;
-            font-size: 0.9375rem;
-            background-color: var(--m3-scheme-surface);
-            transition: all var(--m3-motion-duration-short) ease;
-            color: var(--m3-scheme-on-surface);
-        }
-        
-        .form-control:focus {
-            border-color: var(--m3-scheme-primary);
-            box-shadow: 0 0 0 3px var(--m3-scheme-primary-container);
-            outline: none;
-        }
-        
-        .form-control::placeholder {
-            color: var(--m3-scheme-on-surface-variant);
-            opacity: 0.7;
-        }
-        
-        .form-check-input {
-            width: 1.125rem;
-            height: 1.125rem;
-            border: 2px solid var(--m3-scheme-outline);
-            background-color: var(--m3-scheme-surface);
-            cursor: pointer;
-            margin-top: 0.1rem;
-        }
-        
-        .form-check-input:checked {
-            background-color: var(--m3-scheme-primary);
-            border-color: var(--m3-scheme-primary);
-        }
-        
-        .form-check-input:focus {
-            box-shadow: 0 0 0 3px var(--m3-scheme-primary-container);
-            border-color: var(--m3-scheme-primary);
-        }
-        
-        .form-check-label {
-            color: var(--m3-scheme-on-surface-variant);
-            font-size: 0.875rem;
-        }
-        
-        .btn-primary {
-            background-color: var(--m3-scheme-primary);
-            color: var(--m3-scheme-on-primary);
-            border: none;
-            border-radius: var(--m3-radius-small);
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-            font-size: 0.9375rem;
-            width: 100%;
-            transition: all var(--m3-motion-duration-short) ease;
-            cursor: pointer;
-        }
-        
-        .btn-primary:hover {
-            background-color: #4338ca;
-            box-shadow: var(--m3-elevation-2);
-        }
-        
-        .btn-primary:focus {
-            box-shadow: 0 0 0 2px var(--m3-scheme-surface), 0 0 0 4px var(--m3-scheme-primary);
-            outline: none;
-        }
-        
-        .btn-warning {
-            background-color: var(--m3-scheme-warning);
-            color: var(--m3-scheme-on-warning);
-            border: none;
-            border-radius: var(--m3-radius-small);
-            padding: 0.5rem 1rem;
-            font-weight: 500;
-            font-size: 0.875rem;
-            transition: all var(--m3-motion-duration-short) ease;
-            cursor: pointer;
-        }
-        
-        .btn-warning:hover {
-            background-color: #b45309;
-        }
-        
-        .alert {
-            border: none;
-            border-radius: var(--m3-radius-medium);
-            padding: 1rem 1.25rem;
-            font-weight: 500;
-            margin-bottom: 1.5rem;
-        }
-        
-        .alert-success {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-        
-        .alert-danger {
-            background-color: #fee2e2;
-            color: #991b1b;
-        }
-        
-        .alert-warning {
-            background-color: #fef3c7;
-            color: #92400e;
-        }
-        
-        .alert-info {
-            background-color: #cffafe;
-            color: #164e63;
-        }
-        
-        .alert-dismissible .btn-close {
-            padding: 0.75rem;
-        }
-        
-        .btn-close {
-            opacity: 0.5;
-        }
-        
-        .btn-close:hover {
-            opacity: 1;
-        }
-        
-        .forgot-link {
-            color: var(--m3-scheme-primary);
-            text-decoration: none;
-            font-size: 0.875rem;
-            transition: color var(--m3-motion-duration-short) ease;
-        }
-        
-        .forgot-link:hover {
-            color: var(--m3-scheme-on-primary-container);
-        }
-        
-        .setup-box {
-            background: var(--m3-scheme-surface-variant);
-            border-radius: var(--m3-radius-medium);
-            padding: 1.25rem;
-            text-align: center;
-            margin-top: 1.5rem;
-        }
-        
-        .setup-box p {
-            color: var(--m3-scheme-on-surface-variant);
-            font-size: 0.875rem;
-            margin-bottom: 0.75rem;
-        }
-    </style>
-</head>
-<body>
-    <div class="login-card">
-        <div class="login-icon">
-            <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="Logo">
-        </div>
-        <h1 class="login-title">Invoice Management Software</h1>
-        <p class="login-subtitle">Sign in to continue</p>
-        
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-        <form method="POST">
-            {{ form.hidden_tag() }}
-            <div class="mb-3">
-                <label class="form-label">Username</label>
-                {{ form.username(class="form-control", autofocus=True) }}
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Password</label>
-                {{ form.password(class="form-control") }}
-            </div>
-            <div class="mb-4 form-check">
-                {{ form.remember(class="form-check-input", id="remember") }}
-                <label class="form-check-label" for="remember">Remember me (30 days)</label>
-            </div>
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
-            </button>
-        </form>
-        
-        <div class="text-center mt-4">
-            <a href="{{ url_for('auth.recovery') }}" class="forgot-link">Forgot password? Use recovery code</a>
-        </div>
-        
-        {% if session.get('no_users') %}
-        <div class="setup-box">
-            <p>No admin account yet?</p>
-            <a href="{{ url_for('auth.setup') }}" class="btn btn-warning">
-                <i class="bi bi-gear me-2"></i>Run Setup
-            </a>
-        </div>
+{% extends "base.html" %}
+
+{% block title %}Login - Invoice Management Software{% endblock %}
+
+{% set show_nav = false %}
+
+{% block extra_css %}
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--md-sys-color-primary-container) 0%, var(--md-sys-color-tertiary-container) 50%, var(--md-sys-color-surface-variant) 100%);
+    }
+    
+    .login-card {
+        background: var(--md-sys-color-surface);
+        border-radius: var(--md-sys-shape-corner-extra-large);
+        box-shadow: var(--md-sys-elevation-4);
+        width: 100%;
+        max-width: 420px;
+        padding: 2.5rem;
+        transition: all var(--md-sys-motion-duration-medium-2) var(--md-sys-motion-easing-emphasized);
+    }
+    
+    .login-card:hover {
+        box-shadow: var(--md-sys-elevation-5);
+        transform: translateY(-2px);
+    }
+    
+    .login-icon {
+        width: 100%;
+        max-width: 200px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        overflow: hidden;
+    }
+    
+    .login-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+    
+    .login-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--md-sys-color-on-surface);
+        margin-bottom: 0.5rem;
+        text-align: center;
+    }
+    
+    .login-subtitle {
+        color: var(--md-sys-color-on-surface-variant);
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .forgot-link {
+        color: var(--md-sys-color-primary);
+        text-decoration: none;
+        font-size: 0.875rem;
+        transition: color var(--md-sys-motion-duration-short-2) var(--md-sys-motion-easing-standard);
+    }
+    
+    .forgot-link:hover {
+        color: var(--md-sys-color-on-primary-container);
+    }
+    
+    .setup-box {
+        background: var(--md-sys-color-surface-variant);
+        border-radius: var(--md-sys-shape-corner-medium);
+        padding: 1.25rem;
+        text-align: center;
+        margin-top: 1.5rem;
+    }
+    
+    .setup-box p {
+        color: var(--md-sys-color-on-surface-variant);
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-card">
+    <div class="login-icon">
+        <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="Logo">
+    </div>
+    <h1 class="login-title">Invoice Management Software</h1>
+    <p class="login-subtitle">Sign in to continue</p>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
         {% endif %}
+    {% endwith %}
+    
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            {{ form.username(class="form-control", autofocus=True) }}
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            {{ form.password(class="form-control") }}
+        </div>
+        <div class="mb-4 form-check">
+            {{ form.remember(class="form-check-input", id="remember") }}
+            <label class="form-check-label" for="remember">Remember me (30 days)</label>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+        </button>
+    </form>
+    
+    <div class="text-center mt-4">
+        <a href="{{ url_for('auth.recovery') }}" class="forgot-link">Forgot password? Use recovery code</a>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    {% if session.get('no_users') %}
+    <div class="setup-box">
+        <p>No admin account yet?</p>
+        <a href="{{ url_for('auth.setup') }}" class="btn btn-warning">
+            <i class="bi bi-gear me-2"></i>Run Setup
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

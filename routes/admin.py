@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 import io, csv, zipfile, os
 from datetime import datetime
-from models import User, Company, Party, Invoice, InvoiceItem, CreditNote, CreditNoteItem, db
+from models import User, Company, Party, Invoice, InvoiceItem, CreditNote, CreditNoteItem, RecoveryCode, ConfigStore, db, generate_recovery_code
 from utils import admin_required, get_current_company
 
 
@@ -178,16 +178,20 @@ def backup():
 @admin_bp.route("/users/generate-recovery-codes", methods=["POST"])
 @admin_required
 def generate_recovery_codes():
+    from flask import session
     from constants import RECOVERY_CODE_COUNT
-    user_id = request.form.get("user_id")
+    
+    user_id = session.get("user_id")
     if not user_id:
-        flash("User is required", "danger")
+        flash("Authentication error", "danger")
         return redirect(url_for("admin.manage_users"))
     
     user = db.session.get(User, int(user_id))
-    if not user:
-        flash("User not found", "danger")
-        return redirect(url_for("admin.manage_users"))
+    
+    # Enforce Admin-Only Recovery (Self-Recovery)
+    # Delete all existing unused recovery codes for this admin
+    RecoveryCode.query.filter_by(user_id=user.id, is_used=False).delete()
+    db.session.commit()
     
     codes = []
     for _ in range(RECOVERY_CODE_COUNT):
@@ -198,10 +202,10 @@ def generate_recovery_codes():
     
     db.session.commit()
     
-    from flask import session
+    # Store in session for immediate display in the modal
     session["new_codes"] = codes
     
-    flash(f"Generated {len(codes)} recovery codes for {user.username}", "success")
+    flash(f"Generated {len(codes)} new recovery codes for your account", "success")
     return redirect(url_for("admin.manage_users"))
 
 
@@ -209,13 +213,18 @@ def generate_recovery_codes():
 @admin_required
 def download_recovery_codes():
     from flask import session
+    user_id = session.get("user_id")
+    
+    # Priority 1: Check session for immediately generated codes
     codes = session.get("new_codes", [])
+    
+    # Priority 2: Fallback to Database (Unused codes for this admin)
     if not codes:
-        codes_str = ConfigStore.get("recovery_codes", "")
-        codes = [c for c in codes_str.split(",") if c] if codes_str else []
+        rcs = RecoveryCode.query.filter_by(user_id=user_id, is_used=False).all()
+        codes = [rc.code for rc in rcs]
     
     if not codes:
-        flash("No codes to download", "warning")
+        flash("No recovery codes available. Please generate new ones.", "warning")
         return redirect(url_for("admin.manage_users"))
     
     content = "Recovery Codes\n"
@@ -230,4 +239,5 @@ def download_recovery_codes():
     response = make_response(content.encode())
     response.headers["Content-Disposition"] = "attachment;filename=recovery_codes.txt"
     response.headers["Content-Type"] = "text/plain"
+    
     return response
