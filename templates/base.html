@@ -667,7 +667,7 @@
     {% if show_nav and session.get('user_id') %}
     <nav class="navbar navbar-expand-lg navbar-light fixed-top no-print">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+            <a class="navbar-brand" href="{{ url_for('dashboard.dashboard') }}">
                 <img src="{{ url_for('static', filename='logos/logo.png') }}" alt="Logo" style="height: 32px; width: auto; margin-right: 8px;">
                 Invoice Management Software
             </a>
@@ -677,23 +677,23 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                        <a class="nav-link" href="{{ url_for('dashboard.dashboard') }}">Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('parties') }}">Parties</a>
+                        <a class="nav-link" href="{{ url_for('parties.parties') }}">Parties</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('manage_invoices') }}">Invoices</a>
+                        <a class="nav-link" href="{{ url_for('invoices.manage_invoices') }}">Invoices</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('manage_credit_notes') }}">Credit Notes</a>
+                        <a class="nav-link" href="{{ url_for('credit_notes.manage_credit_notes') }}">Credit Notes</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('company') }}">Company</a>
+                        <a class="nav-link" href="{{ url_for('company.company') }}">Company</a>
                     </li>
                     {% if session.role == 'admin' %}
                      <li class="nav-item">
-                         <a class="nav-link" href="{{ url_for('manage_users') }}">Users</a>
+                         <a class="nav-link" href="{{ url_for('admin.manage_users') }}">Users</a>
                      </li>
                      {% endif %}
                     <li class="nav-item dropdown">
@@ -703,7 +703,7 @@
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><span class="dropdown-item-text text-muted small">{{ session.get('full_name') or session.username }}</span></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
                                 <i class="bi bi-box-arrow-right me-1"></i>Logout
                             </a></li>
                         </ul>

@@ -32,10 +32,10 @@
                         </ol>
                     </div>
                     <div class="modal-footer d-flex justify-content-between">
-                        <a href="{{ url_for('download_recovery_codes') }}" class="btn btn-outline-primary">
+                        <a href="{{ url_for('admin.download_recovery_codes') }}" class="btn btn-outline-primary">
                             <i class="bi bi-download me-1"></i> Download Codes
                         </a>
-                        <a href="{{ url_for('manage_users') }}" class="btn btn-primary">Close</a>
+                        <a href="{{ url_for('admin.manage_users') }}" class="btn btn-primary">Close</a>
                     </div>
                 </div>
             </div>
@@ -46,7 +46,7 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="h3 text-dark"><i class="bi bi-people me-2"></i>User Management</h2>
             <div class="d-flex gap-2">
-                <a href="{{ url_for('backup') }}" class="btn btn-outline-success">
+                <a href="{{ url_for('admin.backup') }}" class="btn btn-outline-success">
                     <i class="bi bi-download me-1"></i> Backup
                 </a>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
@@ -128,7 +128,7 @@
             </div>
             <div class="modal-body">
                 <p>This will invalidate all unused recovery codes and generate 5 new ones.</p>
-                <form action="{{ url_for('generate_recovery_codes') }}" method="POST">
+                <form action="{{ url_for('admin.generate_recovery_codes') }}" method="POST">
                     <input type="hidden" name="user_id" value="{{ user.id }}">
                     <button type="submit" class="btn btn-primary w-100">Generate New Codes</button>
                 </form>
@@ -146,7 +146,7 @@
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete user <strong>{{ user.username }}</strong>?</p>
-                <form action="{{ url_for('manage_users') }}" method="POST">
+                <form action="{{ url_for('admin.manage_users') }}" method="POST">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="user_id" value="{{ user.id }}">
                     <div class="d-flex gap-2">
@@ -162,7 +162,7 @@
 <div class="modal fade" id="resetModal{{ user.id }}" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ url_for('manage_users') }}" method="POST">
+            <form action="{{ url_for('admin.manage_users') }}" method="POST">
                 <div class="modal-header">
                     <h5 class="modal-title">Reset Password - {{ user.username }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -189,7 +189,7 @@
 <div class="modal fade" id="createUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ url_for('manage_users') }}" method="POST">
+            <form action="{{ url_for('admin.manage_users') }}" method="POST">
                 <div class="modal-header">
                     <h5 class="modal-title">Add New User</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

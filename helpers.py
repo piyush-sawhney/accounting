@@ -1,6 +1,8 @@
+from sqlalchemy import func, case
 from datetime import datetime, timedelta
-from models import Invoice, Party
+from models import Invoice, Party, InvoiceItem
 from app import db
+
 
 
 def get_date_range(date_range):
@@ -98,19 +100,33 @@ def get_filtered_invoices(period_start, period_end, party_id):
     return invoices, parties
 
 
-def calculate_revenue_and_gst(invoice_gst_data):
-    """Calculate revenue and GST from invoice GST data."""
+def calculate_revenue_and_gst(invoice_gst_data, credit_note_gst_data=None):
+    """Calculate revenue and GST from invoice and credit note GST data."""
+    if credit_note_gst_data is None:
+        credit_note_gst_data = []
+
     this_month_revenue = sum(
         gst_data.get("subtotal", 0) or 0
         for inv, gst_data in invoice_gst_data
         if not inv.is_rcm
     )
+    this_month_revenue -= sum(
+        gst_data.get("subtotal", 0) or 0
+        for cn, gst_data in credit_note_gst_data
+    )
+
     this_month_gst = sum(
         (gst_data.get("cgst", 0) or 0)
         + (gst_data.get("sgst", 0) or 0)
         + (gst_data.get("igst", 0) or 0)
         for inv, gst_data in invoice_gst_data
         if not inv.is_rcm
+    )
+    this_month_gst -= sum(
+        (gst_data.get("cgst", 0) or 0)
+        + (gst_data.get("sgst", 0) or 0)
+        + (gst_data.get("igst", 0) or 0)
+        for cn, gst_data in credit_note_gst_data
     )
     invoice_count = len([inv for inv, _ in invoice_gst_data])
     unlocked_count = sum(1 for inv, _ in invoice_gst_data if not inv.locked)
@@ -223,91 +239,51 @@ def precalculate_gst_data(
 
 def calculate_party_growth_data(
     parties,
-    this_month_invs_all,
-    this_month_invs_with_gst,
-    last_month_invs_all,
-    last_month_invs_with_gst,
-    two_months_back_invs_all,
-    two_months_back_invs_with_gst,
-    three_months_back_invs_all,
-    three_months_back_invs_with_gst,
-    four_months_back_invs_all,
-    four_months_back_invs_with_gst,
-    last_3m_invs_all,
-    last_3m_invs_with_gst,
-    this_month_last_year_invs_all,
-    this_month_last_year_invs_with_gst,
+    period_start,
+    period_end,
+    last_month_start,
+    last_month_end,
+    two_months_back_start,
+    two_months_back_end,
+    three_months_start,
+    three_months_end,
+    four_months_start,
+    four_months_end,
+    last_3m_start,
+    last_3m_end,
+    this_month_last_year_start,
+    this_month_last_year_end,
 ):
-    """Calculate party growth data."""
+    """Calculate party growth data using SQL aggregations for performance."""
+    
+    # Define the aggregation query
+    # We join Invoice and InvoiceItem and sum taxable_value for non-RCM invoices in specified ranges
+    stats_query = db.session.query(
+        Invoice.party_id,
+        func.sum(case(((Invoice.invoice_date >= period_start) & (Invoice.invoice_date <= period_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('this_month'),
+        func.sum(case(((Invoice.invoice_date >= last_month_start) & (Invoice.invoice_date <= last_month_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('last_month'),
+        func.sum(case(((Invoice.invoice_date >= two_months_back_start) & (Invoice.invoice_date <= two_months_back_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('two_months_ago'),
+        func.sum(case(((Invoice.invoice_date >= three_months_start) & (Invoice.invoice_date <= three_months_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('three_months_ago'),
+        func.sum(case(((Invoice.invoice_date >= four_months_start) & (Invoice.invoice_date <= four_months_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('four_months_ago'),
+        func.sum(case(((Invoice.invoice_date >= last_3m_start) & (Invoice.invoice_date <= last_3m_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('last_3m'),
+        func.sum(case(((Invoice.invoice_date >= this_month_last_year_start) & (Invoice.invoice_date <= this_month_last_year_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('this_month_last_year'),
+    ).join(InvoiceItem).group_by(Invoice.party_id).all()
+
+    party_stats = {row.party_id: row for row in stats_query}
+    
     party_growth_data = []
     max_revenue = 0
 
     for party in parties:
-        # This month revenue
-        this_month_invs = [
-            inv for inv in this_month_invs_all if inv.party_id == party.id
-        ]
-        this_month_rev = sum(
-            gst_data.get("subtotal", 0) or 0
-            for inv, gst_data in this_month_invs_with_gst
-            if inv.party_id == party.id
-        )
-
-        # This month last year
-        this_m_last_yr_invs = [
-            inv for inv in this_month_last_year_invs_all if inv.party_id == party.id
-        ]
-        this_month_last_year_rev = sum(
-            gst_data.get("subtotal", 0) or 0
-            for inv, gst_data in this_month_last_year_invs_with_gst
-            if inv.party_id == party.id
-        )
-
-        # Last month revenue
-        last_m_invs = [inv for inv in last_month_invs_all if inv.party_id == party.id]
-        last_month_rev = sum(
-            gst_data.get("subtotal", 0) or 0
-            for inv, gst_data in last_month_invs_with_gst
-            if inv.party_id == party.id
-        )
-
-        # Previous to previous month (2 months ago)
-        two_m_invs = [
-            inv for inv in two_months_back_invs_all if inv.party_id == party.id
-        ]
-        two_months_ago_rev = sum(
-            gst_data.get("subtotal", 0) or 0
-            for inv, gst_data in two_months_back_invs_with_gst
-            if inv.party_id == party.id
-        )
-
-        # Three months ago
-        three_m_invs = [
-            inv for inv in three_months_back_invs_all if inv.party_id == party.id
-        ]
-        three_months_ago_rev = sum(
-            gst_data.get("subtotal", 0) or 0
-            for inv, gst_data in three_months_back_invs_with_gst
-            if inv.party_id == party.id
-        )
-
-        # Four months ago
-        four_m_invs = [
-            inv for inv in four_months_back_invs_all if inv.party_id == party.id
-        ]
-        four_months_ago_rev = sum(
-            gst_data.get("subtotal", 0) or 0
-            for inv, gst_data in four_months_back_invs_with_gst
-            if inv.party_id == party.id
-        )
-
-        # Last 3 months revenue
-        last_3m_invs = [inv for inv in last_3m_invs_all if inv.party_id == party.id]
-        last_3m_rev = sum(
-            gst_data.get("subtotal", 0) or 0
-            for inv, gst_data in last_3m_invs_with_gst
-            if inv.party_id == party.id
-        )
+        stats = party_stats.get(party.id)
+        
+        this_month_rev = float(stats.this_month) if stats else 0.0
+        last_month_rev = float(stats.last_month) if stats else 0.0
+        two_months_ago_rev = float(stats.two_months_ago) if stats else 0.0
+        three_months_ago_rev = float(stats.three_months_ago) if stats else 0.0
+        four_months_ago_rev = float(stats.four_months_ago) if stats else 0.0
+        last_3m_rev = float(stats.last_3m) if stats else 0.0
+        this_month_last_year_rev = float(stats.this_month_last_year) if stats else 0.0
 
         if this_month_rev > max_revenue:
             max_revenue = this_month_rev
@@ -322,8 +298,8 @@ def calculate_party_growth_data(
                 "three_months_ago": three_months_ago_rev,
                 "four_months_ago": four_months_ago_rev,
                 "last_3m": last_3m_rev,
-                "growth": 0,  # Will be calculated later
-                "trend": [],  # Will be calculated later
+                "growth": 0,
+                "trend": [],
             }
         )
 

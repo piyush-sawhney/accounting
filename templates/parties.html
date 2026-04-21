@@ -18,7 +18,7 @@
         
         <div class="row mb-4 g-3 align-items-center">
             <div class="col-auto">
-                <form action="{{ url_for('export_selected_parties') }}" method="POST" id="exportPartiesForm">
+                <form action="{{ url_for('parties.export_selected_parties') }}" method="POST" id="exportPartiesForm">
                     <input type="hidden" name="party_ids" id="export_party_ids">
                     <button type="submit" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-download me-1"></i> Export Selected
@@ -26,7 +26,7 @@
                 </form>
             </div>
             <div class="col-auto">
-                <a href="{{ url_for('import_parties') }}" class="btn btn-outline-secondary btn-sm">
+                <a href="{{ url_for('parties.import_parties') }}" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-upload me-1"></i> Import CSV
                 </a>
             </div>
@@ -47,19 +47,19 @@
                         <tr>
                             <th class="text-center" style="width: 40px;"><input type="checkbox" id="selectAll"></th>
                             <th>
-                                <a href="{{ url_for('parties', sort_by='name', sort_dir='asc' if sort_by != 'name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('parties.parties', sort_by='name', sort_dir='asc' if sort_by != 'name' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
                                     Name {% if sort_by == 'name' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
                             <th>
-                                <a href="{{ url_for('parties', sort_by='gstin', sort_dir='asc' if sort_by != 'gstin' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('parties.parties', sort_by='gstin', sort_dir='asc' if sort_by != 'gstin' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
                                     GSTIN {% if sort_by == 'gstin' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
                             <th>PAN</th>
                             <th>AMC Code</th>
                             <th>
-                                <a href="{{ url_for('parties', sort_by='state', sort_dir='asc' if sort_by != 'state' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('parties.parties', sort_by='state', sort_dir='asc' if sort_by != 'state' or sort_dir == 'desc' else 'desc') }}" class="text-decoration-none text-muted">
                                     State {% if sort_by == 'state' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
@@ -92,7 +92,7 @@
                             <td class="text-muted small">{{ party.address or '-' }}</td>
                             <td>
                                 <div class="btn-group" role="group">
-                                    <a href="{{ url_for('edit_party', party_id=party.id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <a href="{{ url_for('parties.edit_party', party_id=party.id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <button type="button" class="btn btn-sm btn-outline-danger" title="Delete" data-bs-toggle="modal" data-bs-target="#deletePartyModal" data-party-id="{{ party.id }}" data-party-name="{{ party.name }}">
@@ -120,7 +120,7 @@
                 <h5 class="modal-title">Add New Party</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('parties') }}">
+            <form method="POST" action="{{ url_for('parties.parties') }}">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Party Name *</label>

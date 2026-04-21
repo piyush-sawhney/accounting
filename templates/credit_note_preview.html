@@ -1,188 +1,188 @@
 {% extends "base.html" %}
 
-{% block title %}Credit Note {{ credit_note.credit_note_no or 'Pending' }} - Invoice Management Software{% endblock %}
+{% block title %}Credit Note Preview - Invoice Management Software{% endblock %}
 
 {% block content %}
-<div class="col-md-10 py-4">
-    <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="h3 text-dark">
-                <i class="bi bi-credit-card me-2"></i>
-                Credit Note {{ credit_note.credit_note_no or 'Pending' }}
-            </h2>
-            <div class="d-flex gap-2">
-                <a href="{{ url_for('manage_credit_notes') }}" class="btn btn-outline-secondary">
+<div class="col-md-12 py-4">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+            <h2 class="h3 text-dark"><i class="bi bi-credit-card me-2"></i>Credit Note Preview</h2>
+            <div>
+                <a href="{{ url_for('credit_notes.manage_credit_notes') }}" class="btn btn-outline-secondary me-2">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
+                <button onclick="window.print()" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-printer me-1"></i> Print
+                </button>
                 {% if credit_note.credit_note_no %}
-                <a href="{{ url_for('generate_credit_note_pdf', credit_note_id=credit_note.id) }}" class="btn btn-danger">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+                 <a href="{{ url_for('credit_notes.generate_credit_note_pdf', credit_note_id=credit_note.id) }}" class="btn btn-primary" target="_blank">
+                    <i class="bi bi-file-pdf me-1"></i> Download PDF
                 </a>
                 {% endif %}
             </div>
         </div>
         
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card mb-4">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0">Credit Note Details</h5>
+        <div class="card p-4">
+            <div class="invoice-container" style="max-width: 210mm; margin: 0 auto; background: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                <div class="header" style="text-align: center; margin-bottom: 6mm; padding-bottom: 4mm; border-bottom: 2px solid #000000;">
+                    <h1 style="font-size: 20pt; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: #000000;">Credit Note</h1>
+                    <div style="font-size: 10pt; color: #757575; margin-top: 2mm;">Against Tax Invoice</div>
+                </div>
+                
+                <div style="display: table; width: 100%; margin-bottom: 6mm;">
+                    <div style="display: table-cell; width: 33.33%; text-align: center; padding: 3mm; border: 1px solid #e0e0e0; background-color: #ffffff;">
+                        <div style="font-size: 9pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 2mm;">Credit Note Number</div>
+                        <div style="font-size: 11pt; font-weight: 700;">{{ credit_note.credit_note_no or '-' }}</div>
                     </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Credit Note Number</label>
-                                <p class="mb-0 fw-bold">
-                                    {% if credit_note.credit_note_no %}
-                                    <span class="badge bg-light text-dark border">{{ credit_note.credit_note_no }}</span>
-                                    {% if credit_note.locked %}
-                                    <i class="bi bi-lock-fill text-muted ms-1"></i>
-                                    {% endif %}
-                                    {% else %}
-                                    <span class="badge bg-warning text-dark">Pending</span>
-                                    {% endif %}
-                                </p>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Credit Note Date</label>
-                                <p class="mb-0">{{ credit_note.credit_note_date.strftime('%d-%m-%Y') }}</p>
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Reference Invoice</label>
-                                <p class="mb-0">
-                                    {% if credit_note.invoice %}
-                                    <span class="badge bg-info text-white">{{ credit_note.invoice.invoice_no or 'Pending' }}</span>
-                                    {% else %}
-                                    -
-                                    {% endif %}
-                                </p>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Reason</label>
-                                <p class="mb-0">{{ credit_note.reason }}</p>
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Tax Type</label>
-                                <p class="mb-0">
-                                    {% if credit_note.tax_type == 'INTER' %}
-                                    <span class="badge bg-secondary text-white">Inter-state (IGST)</span>
-                                    {% else %}
-                                    <span class="badge bg-info text-white">Intra-state (CGST+SGST)</span>
-                                    {% endif %}
-                                </p>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Place of Supply</label>
-                                <p class="mb-0">{{ credit_note.place_of_supply or '-' }}</p>
-                            </div>
-                        </div>
+                    <div style="display: table-cell; width: 33.33%; text-align: center; padding: 3mm; border: 1px solid #e0e0e0; background-color: #ffffff;">
+                        <div style="font-size: 9pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 2mm;">Credit Note Date</div>
+                        <div style="font-size: 11pt; font-weight: 700;">{{ credit_note.credit_note_date.strftime('%d-%m-%Y') }}</div>
+                    </div>
+                    {% if credit_note.reason %}
+                    <div style="display: table-cell; width: 33.33%; text-align: center; padding: 3mm; border: 1px solid #e0e0e0; background-color: #ffffff;">
+                        <div style="font-size: 9pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 2mm;">Reason</div>
+                        <div style="font-size: 11pt; font-weight: 700;">{{ credit_note.reason }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if credit_note.invoice %}
+                <div style="display: table; width: 100%; margin-bottom: 6mm;">
+                    <div style="display: table-cell; width: 50%; text-align: center; padding: 3mm; border: 1px solid #e0e0e0; background-color: #ffffff;">
+                        <div style="font-size: 9pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 2mm;">Original Invoice Number</div>
+                        <div style="font-size: 11pt; font-weight: 700;">{{ credit_note.invoice.invoice_no or 'Pending' }}</div>
+                    </div>
+                    <div style="display: table-cell; width: 50%; text-align: center; padding: 3mm; border: 1px solid #e0e0e0; background-color: #ffffff;">
+                        <div style="font-size: 9pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 2mm;">Original Invoice Date</div>
+                        <div style="font-size: 11pt; font-weight: 700;">{{ credit_note.invoice.invoice_date.strftime('%d-%m-%Y') if credit_note.invoice.invoice_date else '-' }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div style="display: table; width: 100%; margin-bottom: 6mm;">
+                    <div style="display: table-cell; width: 48%; padding: 3mm; vertical-align: top; border: 1px solid #e0e0e0;">
+                        <div style="font-size: 9pt; font-weight: 700; text-transform: uppercase; color: #757575; margin-bottom: 3mm; padding-bottom: 2mm; border-bottom: 1px solid #e0e0e0;">Supplier Details</div>
+                         <p style="font-size: 11pt; font-weight: 700; color: #212121; margin-bottom: 3mm;">{{ credit_note.company_name or 'Not set' }}</p>
+                         {% if credit_note.company_address %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">{{ credit_note.company_address }}</p>
+                        {% endif %}
+                        {% if credit_note.company_gstin %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">GSTIN: {{ credit_note.company_gstin }}</p>
+                        {% endif %}
+                        {% if credit_note.company_pan %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">PAN: {{ credit_note.company_pan }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div style="display: table-cell; width: 4%;"></div>
+                    
+                    <div style="display: table-cell; width: 48%; padding: 3mm; vertical-align: top; border: 1px solid #e0e0e0;">
+                        <div style="font-size: 9pt; font-weight: 700; text-transform: uppercase; color: #757575; margin-bottom: 3mm; padding-bottom: 2mm; border-bottom: 1px solid #e0e0e0;">Bill To / Recipient</div>
+                        <p style="font-size: 11pt; font-weight: 700; color: #212121; margin-bottom: 3mm;">{{ credit_note.party_name or '-' }}</p>
+                        {% if credit_note.party_address %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">{{ credit_note.party_address }}</p>
+                        {% endif %}
+                        {% if credit_note.party_gstin %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">GSTIN: {{ credit_note.party_gstin }}</p>
+                        {% endif %}
+                        {% if credit_note.party_pan %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">PAN: {{ credit_note.party_pan }}</p>
+                        {% endif %}
+                        {% if credit_note.party_state %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">State: {{ credit_note.party_state }}</p>
+                        {% endif %}
+                        {% if credit_note.party_state_code %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">State Code: {{ credit_note.party_state_code }}</p>
+                        {% endif %}
+                        {% if credit_note.place_of_supply %}
+                        <p style="font-size: 10pt; margin: 3px 0; color: #424242;">Place of Supply: {{ credit_note.place_of_supply }}</p>
+                        {% endif %}
                     </div>
                 </div>
                 
-                <div class="card mb-4">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0">Party Details</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Party Name</label>
-                                <p class="mb-0 fw-bold">{{ credit_note.party_name or '-' }}</p>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">GSTIN</label>
-                                <p class="mb-0"><code>{{ credit_note.party_gstin or '-' }}</code></p>
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">Address</label>
-                                <p class="mb-0">{{ credit_note.party_address or '-' }}</p>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label text-muted small">State</label>
-                                <p class="mb-0">{{ credit_note.party_state or '-' }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0">Items</h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Description</th>
-                                    <th class="text-end">Taxable Value</th>
-                                    <th class="text-center">Tax Rates</th>
-                                    <th class="text-end">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in credit_note.items %}
-                                <tr>
-                                    <td>{{ item.description }}</td>
-                                    <td class="text-end">₹{{ "%.2f"|format(item.taxable_value) }}</td>
-                                    <td class="text-center">
+                <table class="table table-bordered" style="margin-bottom: 0; border-collapse: collapse; width: 100%; font-size: 10pt;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 4%; background-color: #f8f9fa; color: #757575;">No.</th>
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 40%; background-color: #f8f9fa; color: #757575;">Description</th>
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 12%; background-color: #f8f9fa; color: #757575;">Taxable Value</th>
+                            {% if credit_note.tax_type == 'INTER' %}
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 8%; background-color: #f8f9fa; color: #757575;">IGST %</th>
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 10%; background-color: #f8f9fa; color: #757575;">IGST Amount</th>
+                            {% else %}
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 8%; background-color: #f8f9fa; color: #757575;">CGST %</th>
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 10%; background-color: #f8f9fa; color: #757575;">CGST Amount</th>
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 8%; background-color: #f8f9fa; color: #757575;">SGST %</th>
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 10%; background-color: #f8f9fa; color: #757575;">SGST Amount</th>
+                            {% endif %}
+                            <th style="padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; width: 12%; background-color: #f8f9fa; color: #757575;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in credit_note.items %}
+                        <tr>
+                            <td style="padding: 3mm; text-align: center; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">{{ loop.index }}</td>
+                            <td style="padding: 3mm; text-align: left; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">{{ item.description }}</td>
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">₹{{ "%.2f"|format(item.taxable_value) }}</td>
+                            {% if credit_note.tax_type == 'INTER' %}
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">{{ item.igst_rate }}%</td>
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">₹{{ "%.2f"|format(item.igst_amt) }}</td>
+                            {% else %}
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">{{ item.cgst_rate }}%</td>
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">₹{{ "%.2f"|format(item.cgst_amt) }}</td>
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">{{ item.sgst_rate }}%</td>
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242;">₹{{ "%.2f"|format(item.sgst_amt) }}</td>
+                            {% endif %}
+                            <td style="padding: 3mm; text-align: right; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242; font-weight: 600;">₹{{ "%.2f"|format(item.taxable_value + item.igst_amt + item.cgst_amt + item.sgst_amt) }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr>
+                            <td colspan="{% if credit_note.tax_type == 'INTER' %}6{% else %}8{% endif %}" style="padding: 0; border: 1px solid #e0e0e0;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 2mm 3mm; width: 70%; font-size: 10pt; color: #424242; border-bottom: 1px solid #e0e0e0;">Total Taxable Value</td>
+                                        <td style="padding: 2mm 3mm; width: 30%; text-align: right; font-size: 10pt; color: #424242; border-bottom: 1px solid #e0e0e0;">₹{{ "%.2f"|format(credit_note.calculate_gst().subtotal) }}</td>
+                                    </tr>
+                                    <tr>
                                         {% if credit_note.tax_type == 'INTER' %}
-                                        IGST {{ item.igst_rate }}%
+                                        <td style="padding: 2mm 3mm; font-size: 10pt; color: #424242; border-bottom: 1px solid #e0e0e0;">Add: IGST</td>
+                                        <td style="padding: 2mm 3mm; text-align: right; font-size: 10pt; color: #424242; border-bottom: 1px solid #e0e0e0;">₹{{ "%.2f"|format(credit_note.calculate_gst().igst) }}</td>
                                         {% else %}
-                                        CGST {{ item.cgst_rate }}% + SGST {{ item.sgst_rate }}%
+                                        <td style="padding: 2mm 3mm; font-size: 10pt; color: #424242; border-bottom: 1px solid #e0e0e0;">Add: CGST + SGST</td>
+                                        <td style="padding: 2mm 3mm; text-align: right; font-size: 10pt; color: #424242; border-bottom: 1px solid #e0e0e0;">₹{{ "%.2f"|format(credit_note.calculate_gst().cgst + credit_note.calculate_gst().sgst) }}</td>
                                         {% endif %}
-                                    </td>
-                                    <td class="text-end fw-bold">₹{{ "%.2f"|format(item.taxable_value + item.cgst_amt + item.sgst_amt + item.igst_amt) }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0">Summary</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted">Taxable Value</span>
-                            <span class="fw-bold">₹{{ "%.2f"|format(credit_note.calculate_gst().subtotal) }}</span>
-                        </div>
-                        {% if credit_note.tax_type == 'INTER' %}
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted">IGST</span>
-                            <span>₹{{ "%.2f"|format(credit_note.calculate_gst().igst) }}</span>
-                        </div>
-                        {% else %}
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted">CGST</span>
-                            <span>₹{{ "%.2f"|format(credit_note.calculate_gst().cgst) }}</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted">SGST</span>
-                            <span>₹{{ "%.2f"|format(credit_note.calculate_gst().sgst) }}</span>
-                        </div>
-                        {% endif %}
-                        <hr>
-                        <div class="d-flex justify-content-between">
-                            <span class="fw-bold">Total</span>
-                            <span class="h5 mb-0">₹{{ "%.2f"|format(credit_note.calculate_gst().total) }}</span>
-                        </div>
-                        {% if credit_note.total_in_words %}
-                        <p class="text-muted small mt-3 mb-0">{{ credit_note.total_in_words }}</p>
-                        {% endif %}
-                    </div>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 3mm; font-size: 12pt; font-weight: 700; color: #212121;">Total Credit Note Value</td>
+                                        <td style="padding: 3mm; text-align: right; font-size: 12pt; font-weight: 700; color: #212121;">₹{{ "%.2f"|format(credit_note.calculate_gst().total) }}</td>
+                                    </tr>
+                                    {% if credit_note.total_in_words %}
+                                    <tr>
+                                        <td style="padding: 3mm; font-size: 10pt; color: #616161;"><strong>Amount in words:</strong></td>
+                                        <td style="padding: 3mm; font-size: 10pt; color: #616161; text-align: right;">{{ credit_note.total_in_words }}</td>
+                                    </tr>
+                                    {% endif %}
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="mt-5 pt-3">
+                    <div style="font-size: 9pt; color: #212121;">For {{ credit_note.company_name or 'Not set' }}</div>
+                    <div style="border-top: 1px solid #e0e0e0; width: 30%; margin-bottom: 2mm; margin-top: 10mm;"></div>
+                    <div style="font-size: 8pt; font-weight: 600; color: #757575;">Authorised Signatory</div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+    
+<style>
+    @media print {
+        body { background: white !important; }
+        .card { box-shadow: none !important; border: none !important; }
+        .no-print { display: none !important; }
+    }
+</style>
 {% endblock %}

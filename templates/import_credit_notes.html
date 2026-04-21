@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Import Invoices - Invoice Management Software{% endblock %}
+{% block title %}Import Credit Notes - Invoice Management Software{% endblock %}
 
 {% block content %}
 <div class="col-md-10 py-4">
@@ -17,15 +17,15 @@
         {% endwith %}
         
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="h3 text-dark"><i class="bi bi-upload me-2"></i>Import Invoices</h2>
-            <a href="{{ url_for('invoices.manage_invoices') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to Invoices
+            <h2 class="h3 text-dark"><i class="bi bi-upload me-2"></i>Import Credit Notes</h2>
+            <a href="{{ url_for('credit_notes.manage_credit_notes') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Credit Notes
             </a>
         </div>
         
         <div class="alert alert-info border-0 shadow-sm">
             <i class="bi bi-info-circle me-2"></i> 
-            <strong>Note:</strong> Invoice numbers will NOT be imported. They will be auto-generated later using the "Generate Invoice Numbers" button on the Dashboard.
+            <strong>Note:</strong> Credit note numbers will NOT be imported. They will be auto-generated later using the "Generate Credit Note Numbers" button on the Credit Notes page.
         </div>
         
         <div class="card mb-4">
@@ -45,29 +45,25 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td><code>invoice_no</code></td><td><span class="badge bg-secondary">No</span></td><td>Invoice number (used for updating unlocked invoices)</td><td>26-27/001</td></tr>
-                            <tr><td><code>reference_serial_no</code></td><td><span class="badge bg-secondary">No</span></td><td>Reference serial number</td><td>128260301039407</td></tr>
-                            <tr><td><code>invoice_date</code></td><td><span class="badge bg-danger">Yes</span></td><td>Invoice date (YYYY-MM-DD or DD-MM-YYYY)</td><td>05-04-2026</td></tr>
                             <tr><td><code>party_gstin</code></td><td><span class="badge bg-danger">Yes</span></td><td>Recipient GSTIN (must exist in Parties)</td><td>27AACTA5925A1Z5</td></tr>
-                            <tr><td><code>description</code></td><td><span class="badge bg-danger">Yes</span></td><td>Description of services</td><td>Distribution Commission for March 2026</td></tr>
-                            <tr><td><code>sac_hsn_code</code></td><td><span class="badge bg-secondary">No</span></td><td>SAC or HSN code (per line item)</td><td>9971</td></tr>
+                            <tr><td><code>credit_note_date</code></td><td><span class="badge bg-danger">Yes</span></td><td>Credit note date (YYYY-MM-DD)</td><td>05-04-2026</td></tr>
+                            <tr><td><code>reference_invoice_number</code></td><td><span class="badge bg-danger">Yes</span></td><td>Original invoice number to link</td><td>26-27/001</td></tr>
+                            <tr><td><code>description</code></td><td><span class="badge bg-danger">Yes</span></td><td>Description of services</td><td>Distribution Commission</td></tr>
                             <tr><td><code>taxable_value</code></td><td><span class="badge bg-danger">Yes</span></td><td>Taxable amount</td><td>25484.87</td></tr>
                             <tr><td><code>tax_type</code></td><td><span class="badge bg-secondary">No</span></td><td>INTRA or INTER (default: INTER)</td><td>INTER</td></tr>
                             <tr><td><code>igst_rate</code></td><td><span class="badge bg-secondary">No</span></td><td>IGST % (for inter-state)</td><td>18</td></tr>
                             <tr><td><code>cgst_rate</code></td><td><span class="badge bg-secondary">No</span></td><td>CGST % (for intra-state)</td><td>9</td></tr>
                             <tr><td><code>sgst_rate</code></td><td><span class="badge bg-secondary">No</span></td><td>SGST % (for intra-state)</td><td>9</td></tr>
                             <tr><td><code>place_of_supply</code></td><td><span class="badge bg-secondary">No</span></td><td>Place of supply</td><td>Mumbai</td></tr>
-                                  <tr><td><code>reverse_charge</code></td><td><span class="badge bg-secondary">No</span></td><td>Reverse charge amount</td><td>0</td></tr>
-                                  <tr><td><code>is_rcm</code></td><td><span class="badge bg-secondary">No</span></td><td>RCM Flag (1 for yes, 0 for no)</td><td>0</td></tr>
-                                  <tr><td><code>distributor_code</code></td><td><span class="badge bg-secondary">No</span></td><td>Distributor Code for this invoice</td><td>CODE123</td></tr>
-                              </tbody>
+                            <tr><td><code>reason</code></td><td><span class="badge bg-secondary">No</span></td><td>Reason for credit note</td><td>Goods Returned</td></tr>
+                        </tbody>
                     </table>
                 </div>
                 
                 <div class="mt-4">
                     <h6 class="text-primary">Sample CSV Structure</h6>
-                    <pre class="bg-light p-3 rounded small text-muted">invoice_no,reference_serial_no,invoice_date,party_gstin,description,sac_hsn_code,taxable_value,tax_type,igst_rate,place_of_supply,reverse_charge,is_rcm,distributor_code
-26-27/001,128260301039407,05-04-2026,27AACTA5925A1Z5,Distribution Commission,9971,25484.87,INTER,18,Mumbai,0,0,CODE123</pre>
+                    <pre class="bg-light p-3 rounded small text-muted">party_gstin,credit_note_date,reference_invoice_number,description,taxable_value,tax_type,igst_rate,place_of_supply,reason
+27AACTA5925A1Z5,05-04-2026,26-27/001,Distribution Commission,25484.87,INTER,18,Mumbai,Goods Returned</pre>
                 </div>
                 
                 <hr class="my-4">
@@ -79,7 +75,7 @@
                     </div>
                     <div class="col-md-4">
                         <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-upload me-1"></i> Import Invoices
+                            <i class="bi bi-upload me-1"></i> Import Credit Notes
                         </button>
                     </div>
                 </form>

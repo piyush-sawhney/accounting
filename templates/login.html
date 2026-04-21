@@ -299,13 +299,13 @@
         </form>
         
         <div class="text-center mt-4">
-            <a href="{{ url_for('recovery') }}" class="forgot-link">Forgot password? Use recovery code</a>
+            <a href="{{ url_for('auth.recovery') }}" class="forgot-link">Forgot password? Use recovery code</a>
         </div>
         
         {% if session.get('no_users') %}
         <div class="setup-box">
             <p>No admin account yet?</p>
-            <a href="{{ url_for('setup') }}" class="btn btn-warning">
+            <a href="{{ url_for('auth.setup') }}" class="btn btn-warning">
                 <i class="bi bi-gear me-2"></i>Run Setup
             </a>
         </div>

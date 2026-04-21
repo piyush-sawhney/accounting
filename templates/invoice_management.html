@@ -18,7 +18,7 @@
         
         <div class="card mb-4">
             <div class="card-body">
-                <form method="GET" action="{{ url_for('manage_invoices') }}" class="row g-3">
+                <form method="GET" action="{{ url_for('invoices.manage_invoices') }}" class="row g-3">
                     <div class="col-md-2">
                         <label class="form-label text-muted small">Year</label>
                         <select name="year" class="form-select">
@@ -48,7 +48,7 @@
                     </div>
                     <div class="col-md-3 d-flex align-items-end">
                         <button type="submit" class="btn btn-outline-primary me-2 flex-grow-1">Filter</button>
-                        <a href="{{ url_for('manage_invoices') }}" class="btn btn-outline-secondary flex-grow-1">Reset</a>
+                        <a href="{{ url_for('invoices.manage_invoices') }}" class="btn btn-outline-secondary flex-grow-1">Reset</a>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                     </div>
@@ -58,20 +58,14 @@
         
 <div class="row mb-4 g-3 align-items-center">
             <div class="col-auto">
-                <form action="{{ url_for('batch_lock') }}" method="POST" id="lockForm">
-                    <input type="hidden" name="invoice_ids" id="lock_ids">
-                    <button type="submit" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-lock-fill me-1"></i> Lock Selected
-                    </button>
-                </form>
+                <button type="button" class="btn btn-sm btn-outline-primary" disabled id="lockBtn" data-bs-toggle="modal" data-bs-target="#lockInvoicesModal">
+                    <i class="bi bi-lock-fill me-1"></i> Lock Selected
+                </button>
             </div>
             <div class="col-auto">
-                <form action="{{ url_for('batch_unlock') }}" method="POST" id="unlockForm">
-                    <input type="hidden" name="invoice_ids" id="unlock_ids">
-                    <button type="submit" class="btn btn-sm btn-outline-warning">
-                        <i class="bi bi-unlock-fill me-1"></i> Unlock Selected
-                    </button>
-                </form>
+                <button type="button" class="btn btn-sm btn-outline-warning" disabled id="unlockBtn" data-bs-toggle="modal" data-bs-target="#unlockInvoicesModal">
+                    <i class="bi bi-unlock-fill me-1"></i> Unlock Selected
+                </button>
             </div>
             <div class="col-auto">
                 <button type="button" class="btn btn-sm btn-outline-danger" id="deleteBtn" disabled data-bs-toggle="modal" data-bs-target="#deleteInvoicesModal">
@@ -92,18 +86,12 @@
             </div>
             <div class="col-auto ms-auto d-flex align-items-center gap-3">
                 <span id="selectedCount" class="badge bg-dark">0 Selected</span>
-                <form id="batchExportForm" action="{{ url_for('batch_export') }}" method="POST" target="_blank">
-                    <input type="hidden" name="invoice_ids" id="export_ids">
-                    <button type="submit" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
-                    </button>
-                </form>
-                <form id="batchExportExcelForm" action="{{ url_for('batch_export_excel') }}" method="POST" target="_blank">
-                    <input type="hidden" name="invoice_ids" id="excel_ids">
-                    <button type="submit" class="btn btn-sm btn-success">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-                    </button>
-                </form>
+                <button type="button" class="btn btn-sm btn-outline-primary" disabled id="exportPdfBtn" data-bs-toggle="modal" data-bs-target="#exportPdfModal">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+                </button>
+                <button type="button" class="btn btn-sm btn-success" disabled id="exportExcelBtn" data-bs-toggle="modal" data-bs-target="#exportExcelModal">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+                </button>
             </div>
         </div>
         
@@ -112,10 +100,10 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0">Invoices</h5>
                     <div class="d-flex gap-2">
-                        <a href="{{ url_for('create_invoice') }}" class="btn btn-primary btn-sm">
+                        <a href="{{ url_for('invoices.create_invoice') }}" class="btn btn-primary btn-sm">
                             <i class="bi bi-plus-circle me-1"></i> New Invoice
                         </a>
-                        <a href="{{ url_for('import_invoices') }}" class="btn btn-outline-primary btn-sm">
+                        <a href="{{ url_for('invoices.import_invoices') }}" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-upload me-1"></i> Import CSV
                         </a>
                     </div>
@@ -127,17 +115,17 @@
                         <tr>
                             <th class="text-center" style="width: 50px;"><input type="checkbox" id="selectAll"></th>
                             <th>
-                                <a href="{{ url_for('manage_invoices', sort_by='invoice_no', sort_dir='asc' if sort_by != 'invoice_no' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('invoices.manage_invoices', sort_by='invoice_no', sort_dir='asc' if sort_by != 'invoice_no' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
                                     Invoice No. {% if sort_by == 'invoice_no' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
                             <th>
-                                <a href="{{ url_for('manage_invoices', sort_by='date', sort_dir='asc' if sort_by != 'date' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('invoices.manage_invoices', sort_by='date', sort_dir='asc' if sort_by != 'date' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
                                     Date {% if sort_by == 'date' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
                             <th>
-                                <a href="{{ url_for('manage_invoices', sort_by='party', sort_dir='asc' if sort_by != 'party' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('invoices.manage_invoices', sort_by='party', sort_dir='asc' if sort_by != 'party' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
                                     Party Name {% if sort_by == 'party' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
@@ -145,7 +133,7 @@
                             <th>Taxable Amount</th>
                             <th>Tax Rate</th>
                             <th>
-                                <a href="{{ url_for('manage_invoices', sort_by='tax_type', sort_dir='asc' if sort_by != 'tax_type' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('invoices.manage_invoices', sort_by='tax_type', sort_dir='asc' if sort_by != 'tax_type' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, tax_type=tax_type_filter, party=party_filter) }}" class="text-decoration-none text-muted">
                                     Tax Type {% if sort_by == 'tax_type' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
@@ -204,12 +192,12 @@
                             <td class="text-end fw-bold">₹{{ "%.2f"|format(gst.total) }}</td>
                             <td class="text-center">
                                 <div class="btn-group" role="group">
-                                    <a href="{{ url_for('view_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-info" title="View"><i class="bi bi-eye"></i></a>
+                                    <a href="{{ url_for('invoices.view_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-info" title="View"><i class="bi bi-eye"></i></a>
                                     {% if not invoice.locked %}
-                                    <a href="{{ url_for('edit_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-warning" title="Edit"><i class="bi bi-pencil"></i></a>
+                                    <a href="{{ url_for('invoices.edit_invoice', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-warning" title="Edit"><i class="bi bi-pencil"></i></a>
                                     {% endif %}
                                     {% if invoice.invoice_no %}
-                                     <a href="{{ url_for('generate_pdf', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-danger" title="PDF" target="_blank"><i class="bi bi-file-pdf"></i></a>
+                                     <a href="{{ url_for('invoices.generate_pdf', invoice_id=invoice.id) }}" class="btn btn-sm btn-outline-danger" title="PDF" target="_blank"><i class="bi bi-file-pdf"></i></a>
                                     {% endif %}
                                 </div>
                             </td>
@@ -244,9 +232,9 @@
                 </div>
             </div>
             <div class="modal-footer border-0">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{{ url_for('batch_delete') }}" method="POST" id="deleteForm">
+                <form action="{{ url_for('invoices.batch_delete') }}" method="POST" id="deleteForm">
                     <input type="hidden" name="invoice_ids" id="delete_ids">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-trash me-1"></i> Delete
                     </button>
@@ -255,133 +243,67 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-    document.getElementById('selectAll').addEventListener('change', function() {
-        document.querySelectorAll('input[name="invoice_ids"]:not(:disabled)').forEach(cb => cb.checked = this.checked);
-        updateBatchIds();
-    });
+<div class="modal fade" id="lockInvoicesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Confirm Lock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to lock <strong id="lockInvoiceCount">0</strong> invoice(s):</p>
+                <ul class="mb-3">
+                    <li><span id="willBeLockedCount">0</span> invoice(s) will be locked (have invoice numbers)</li>
+                    <li><span id="cannotLockCount">0</span> invoice(s) cannot be locked (missing invoice numbers)</li>
+                    <li><span id="alreadyLockedCount">0</span> invoice(s) are already locked</li>
+                </ul>
+                <div class="alert alert-info border-0" style="border-radius: var(--m3-radius-medium);">
+                    <i class="bi bi-info-circle me-2"></i>Locked invoices cannot be edited or deleted.
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <form action="{{ url_for('invoices.batch_lock') }}" method="POST" id="lockForm">
+                    <input type="hidden" name="invoice_ids" id="lock_ids">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-lock-fill me-1"></i> Lock
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-    function updateBatchIds() {
-        const selectedIds = Array.from(document.querySelectorAll('input[name="invoice_ids"]:checked')).map(cb => cb.value);
-        document.getElementById('lock_ids').value = selectedIds.join(',');
-        document.getElementById('unlock_ids').value = selectedIds.join(',');
-        document.getElementById('delete_ids').value = selectedIds.join(',');
-        document.getElementById('export_ids').value = selectedIds.join(',');
-        document.getElementById('excel_ids').value = selectedIds.join(',');
-        document.getElementById('sync_ids').value = selectedIds.join(',');
-        
-        // Update selected count
-        document.getElementById('selectedCount').textContent = `${selectedIds.length} Selected`;
-        
-        // Count locked vs unlocked and check invoice_no
-        let lockedCount = 0;
-        let unlockedWithInvoiceNoCount = 0;
-        let unlockedWithoutInvoiceNoCount = 0;
-        selectedIds.forEach(id => {
-            const row = document.querySelector(`input[value="${id}"]`)?.closest('tr');
-            const isLocked = row?.querySelector('.bi-lock-fill');
-            const hasInvoiceNo = row?.querySelector('.badge.bg-light');
-            if (isLocked) {
-                lockedCount++;
-            } else if (hasInvoiceNo) {
-                unlockedWithInvoiceNoCount++;
-            } else {
-                unlockedWithoutInvoiceNoCount++;
-            }
-        });
-        
-        // Enable/disable Lock button (only for unlocked with invoice_no)
-        const lockForm = document.getElementById('lockForm');
-        if (lockForm) {
-            lockForm.querySelector('button').disabled = unlockedWithInvoiceNoCount === 0;
-        }
-        
-        // Enable/disable Unlock button (only for locked)
-        const unlockForm = document.getElementById('unlockForm');
-        if (unlockForm) {
-            unlockForm.querySelector('button').disabled = lockedCount === 0;
-        }
-        
-        // Enable/disable sync button (only for unlocked without invoice_no)
-        const syncBtn = document.getElementById('syncPartiesBtn');
-        if (syncBtn) {
-            syncBtn.disabled = (unlockedWithInvoiceNoCount + unlockedWithoutInvoiceNoCount) === 0;
-        }
-        
-        // Enable/disable delete button
-        const deleteBtn = document.getElementById('deleteBtn');
-        if (deleteBtn) {
-            deleteBtn.disabled = selectedIds.length === 0;
-        }
-        
-        // Enable/disable export buttons (only for locked)
-        const batchExportForm = document.getElementById('batchExportForm');
-        if (batchExportForm) {
-            batchExportForm.querySelector('button').disabled = lockedCount === 0;
-        }
-        const batchExportExcelForm = document.getElementById('batchExportExcelForm');
-        if (batchExportExcelForm) {
-            batchExportExcelForm.querySelector('button').disabled = lockedCount === 0;
-        }
-        
-        // Update sync modal count
-        const syncCount = document.getElementById('syncCount');
-        if (syncCount) {
-            syncCount.textContent = unlockedWithInvoiceNoCount + unlockedWithoutInvoiceNoCount;
-        }
-        
-        // Update delete modal count
-        const deleteCount = document.getElementById('deleteInvoiceCount');
-        if (deleteCount) {
-            deleteCount.textContent = selectedIds.length;
-        }
-        
-        const lockedEl = document.getElementById('lockedDeleteCount');
-        const unlockedEl = document.getElementById('unlockedDeleteCount');
-        if (lockedEl) lockedEl.textContent = lockedCount;
-        if (unlockedEl) unlockedEl.textContent = selectedIds.length - lockedCount;
-    }
-
-document.addEventListener('DOMContentLoaded', function() {
-        const checkboxes = document.querySelectorAll('input[name="invoice_ids"]');
-        checkboxes.forEach(cb => cb.addEventListener('change', updateBatchIds));
-        
-        const filters = document.querySelectorAll('#invoicesTable .col-filter');
-        const tbody = document.getElementById('invoicesTable').querySelector('tbody');
-        if (!filters.length || !tbody) return;
-        
-        const tableRows = Array.from(tbody.querySelectorAll('tr'));
-        
-        function filterTable() {
-            tableRows.forEach(row => {
-                let showRow = true;
-                filters.forEach((filter, index) => {
-                    const filterValue = filter.value.toLowerCase().trim();
-                    if (!filterValue) return;
-                    
-                    const cellIndex = index + 1;
-                    const cell = row.cells[cellIndex];
-                    if (cell) {
-                        const cellValue = cell.textContent.toLowerCase();
-                        if (!cellValue.includes(filterValue)) {
-                            showRow = false;
-                        }
-                    }
-                });
-                row.style.display = showRow ? '' : 'none';
-            });
-        }
-        
-        filters.forEach(filter => {
-            filter.addEventListener('input', filterTable);
-        });
-
-        updateBatchIds();
-    });
-</script>
+<div class="modal fade" id="unlockInvoicesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Confirm Unlock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to unlock <strong id="unlockInvoiceCount">0</strong> invoice(s):</p>
+                <ul class="mb-3">
+                    <li><span id="willBeUnlockedCount">0</span> invoice(s) will be unlocked</li>
+                    <li><span id="alreadyUnlockedCount">0</span> invoice(s) are already unlocked</li>
+                </ul>
+                <div class="alert alert-info border-0" style="border-radius: var(--m3-radius-medium);">
+                    <i class="bi bi-info-circle me-2"></i>Unlocked invoices can be edited or deleted.
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <form action="{{ url_for('invoices.batch_unlock') }}" method="POST" id="unlockForm">
+                    <input type="hidden" name="invoice_ids" id="unlock_ids">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-unlock-fill me-1"></i> Unlock
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="generateNumbersModal" tabindex="-1" aria-labelledby="generateNumbersModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -403,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="modal-footer border-0">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{{ url_for('generate_numbers') }}" method="POST">
+                <form action="{{ url_for('invoices.generate_numbers') }}" method="POST">
                     <button type="submit" class="btn btn-success">
                         <i class="bi bi-check-lg me-1"></i> Generate {{ pending_count }} Number{{ 's' if pending_count != 1 else '' }}
                     </button>
@@ -413,34 +335,237 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<div class="modal fade" id="syncPartiesModal" tabindex="-1" aria-labelledby="syncPartiesModalLabel" aria-hidden="true">
+<div class="modal fade" id="exportPdfModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header border-0 pb-0">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="p-2 rounded-circle" style="background-color: var(--m3-scheme-secondary-container);">
-                        <i class="bi bi-arrow-repeat fs-4" style="color: var(--m3-scheme-on-secondary-container);"></i>
-                    </div>
-                    <div>
-                        <h5 class="modal-title mb-0" id="syncPartiesModalLabel">Sync Party Details</h5>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title">Confirm Export PDF</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>You are about to sync party details for <strong class="text-info" id="syncCount">0</strong> selected invoice{{ 's' if '0' != '1' else '' }}.</p>
-                <p class="text-muted small mb-3">This will update party name, GSTIN, PAN, address, and state details from the party master.</p>
+                <p>You are about to export <strong id="exportPdfCount">0</strong> invoice(s) as PDF:</p>
+                <ul class="mb-3">
+                    <li><span id="willExportPdfCount">0</span> invoice(s) will be exported.</li>
+                    <li><span id="cannotExportPdfCount">0</span> invoice(s) cannot be exported (not locked or no invoice number).</li>
+                </ul>
             </div>
             <div class="modal-footer border-0">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{{ url_for('batch_sync') }}" method="POST" id="syncPartiesForm">
-                    <input type="hidden" name="invoice_ids" id="sync_ids">
-                    <button type="submit" class="btn btn-info">
-                        <i class="bi bi-arrow-repeat me-1"></i> Sync Parties
+                <form action="{{ url_for('invoices.batch_export') }}" method="POST" id="exportPdfForm" target="_blank">
+                    <input type="hidden" name="invoice_ids" id="export_pdf_ids">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
                     </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="exportExcelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Confirm Export Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to export <strong id="exportExcelCount">0</strong> invoice(s) as Excel:</p>
+                <ul class="mb-3">
+                    <li><span id="willExportExcelCount">0</span> invoice(s) will be exported.</li>
+                    <li><span id="cannotExportExcelCount">0</span> invoice(s) cannot be exported (not locked or no invoice number).</li>
+                </ul>
+            </div>
+            <div class="modal-footer border-0">
+                <form action="{{ url_for('invoices.batch_export_excel') }}" method="POST" id="exportExcelForm" target="_blank">
+                    <input type="hidden" name="invoice_ids" id="export_excel_ids">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAll');
+    const selectedCountBadge = document.getElementById('selectedCount');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const lockBtn = document.getElementById('lockBtn');
+    const unlockBtn = document.getElementById('unlockBtn');
+    const exportPdfBtn = document.getElementById('exportPdfBtn');
+    const exportExcelBtn = document.getElementById('exportExcelBtn');
+    
+    function getInvoiceCheckboxes() {
+        return document.querySelectorAll('input[type="checkbox"][name="invoice_ids"]');
+    }
+    
+    function updateInvoiceIds() {
+        const invoiceCheckboxes = getInvoiceCheckboxes();
+        const selectedIds = Array.from(invoiceCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        
+        const count = selectedIds.length;
+        
+        const modalData = calculateModalData(invoiceCheckboxes, selectedIds);
+        
+        selectedCountBadge.textContent = count + ' Selected';
+        
+        deleteBtn.disabled = count === 0;
+        lockBtn.disabled = modalData.willLock === 0;
+        unlockBtn.disabled = modalData.willUnlock === 0;
+        exportPdfBtn.disabled = modalData.willExportPdf === 0;
+        exportExcelBtn.disabled = modalData.willExportExcel === 0;
+        
+        document.getElementById('lock_ids').value = selectedIds.join(',');
+        document.getElementById('unlock_ids').value = selectedIds.join(',');
+        document.getElementById('delete_ids').value = selectedIds.join(',');
+        document.getElementById('export_pdf_ids').value = selectedIds.join(',');
+        document.getElementById('export_excel_ids').value = selectedIds.join(',');
+        
+        updateModalCounts(modalData, selectedIds.length);
+    }
+    
+    function calculateModalData(checkboxes, selectedIds) {
+        const invoices = Array.from(checkboxes);
+        
+        let deleteLocked = 0, deleteUnlocked = 0;
+        let willLock = 0, cannotLock = 0, alreadyLocked = 0;
+        let willUnlock = 0, alreadyUnlocked = 0;
+        let willExportPdf = 0, cannotExportPdf = 0;
+        let willExportExcel = 0, cannotExportExcel = 0;
+        
+        invoices.forEach((cb) => {
+            if (!cb.checked) return;
+            const row = cb.closest('tr');
+            const isLocked = row.querySelector('.bi-lock-fill') !== null;
+            const hasInvoiceNo = row.querySelector('.badge.bg-light') !== null;
+            const isPending = row.querySelector('.badge.bg-warning') !== null;
+            
+            if (isLocked) {
+                deleteLocked++;
+                alreadyLocked++;
+                willUnlock++;
+                if (hasInvoiceNo) {
+                    willExportPdf++;
+                    willExportExcel++;
+                } else {
+                    cannotExportPdf++;
+                    cannotExportExcel++;
+                }
+            } else {
+                deleteUnlocked++;
+                cannotExportPdf++;
+                cannotExportExcel++;
+                if (isPending) {
+                    cannotLock++;
+                } else {
+                    willLock++;
+                    alreadyUnlocked++;
+                }
+            }
+        });
+        
+        return {
+            deleteLocked, deleteUnlocked,
+            willLock, cannotLock, alreadyLocked,
+            willUnlock, alreadyUnlocked,
+            willExportPdf, cannotExportPdf,
+            willExportExcel, cannotExportExcel
+        };
+    }
+    
+    function updateModalCounts(modalData, totalSelected) {
+        document.getElementById('deleteInvoiceCount').textContent = totalSelected;
+        document.getElementById('lockedDeleteCount').textContent = modalData.deleteLocked;
+        document.getElementById('unlockedDeleteCount').textContent = modalData.deleteUnlocked;
+        
+        document.getElementById('lockInvoiceCount').textContent = totalSelected;
+        document.getElementById('willBeLockedCount').textContent = modalData.willLock;
+        document.getElementById('cannotLockCount').textContent = modalData.cannotLock;
+        document.getElementById('alreadyLockedCount').textContent = modalData.alreadyLocked;
+        
+        document.getElementById('unlockInvoiceCount').textContent = totalSelected;
+        document.getElementById('willBeUnlockedCount').textContent = modalData.willUnlock;
+        document.getElementById('alreadyUnlockedCount').textContent = modalData.alreadyUnlocked;
+        
+        document.getElementById('exportPdfCount').textContent = totalSelected;
+        document.getElementById('willExportPdfCount').textContent = modalData.willExportPdf;
+        document.getElementById('cannotExportPdfCount').textContent = modalData.cannotExportPdf;
+        
+        document.getElementById('exportExcelCount').textContent = totalSelected;
+        document.getElementById('willExportExcelCount').textContent = modalData.willExportExcel;
+        document.getElementById('cannotExportExcelCount').textContent = modalData.cannotExportExcel;
+    }
+    
+    document.getElementById('lockInvoicesModal').addEventListener('show.bs.modal', updateInvoiceIds);
+    document.getElementById('unlockInvoicesModal').addEventListener('show.bs.modal', updateInvoiceIds);
+    document.getElementById('deleteInvoicesModal').addEventListener('show.bs.modal', updateInvoiceIds);
+    document.getElementById('exportPdfModal').addEventListener('show.bs.modal', updateInvoiceIds);
+    document.getElementById('exportExcelModal').addEventListener('show.bs.modal', updateInvoiceIds);
+    
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            const invoiceCheckboxes = getInvoiceCheckboxes();
+            invoiceCheckboxes.forEach(cb => cb.checked = this.checked);
+            updateInvoiceIds();
+        });
+    }
+    
+    const invoiceCheckboxes = getInvoiceCheckboxes();
+    invoiceCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateInvoiceIds);
+    });
+    
+    const deleteForm = document.getElementById('deleteForm');
+    if (deleteForm) {
+        deleteForm.addEventListener('submit', function(e) {
+            const invoiceCheckboxes = getInvoiceCheckboxes();
+            const selectedIds = Array.from(invoiceCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            document.getElementById('delete_ids').value = selectedIds.join(',');
+        });
+    }
+    
+    // Column filtering for invoice table
+    const invoiceFilters = document.querySelectorAll('#invoicesTable .col-filter');
+    const invoiceTbody = document.getElementById('invoicesTable').querySelector('tbody');
+
+    if (invoiceFilters.length && invoiceTbody) {
+        const invoiceRows = Array.from(invoiceTbody.querySelectorAll('tr'));
+        
+        function filterInvoiceTable() {
+            invoiceRows.forEach(row => {
+                let showRow = true;
+                invoiceFilters.forEach((filter, index) => {
+                    const filterValue = filter.value.toLowerCase().trim();
+                    if (!filterValue) return;
+                    
+                    const cellIndex = index + 1;
+                    const cell = row.cells[cellIndex];
+                    if (cell) {
+                        const cellValue = cell.textContent.toLowerCase();
+                        if (!cellValue.includes(filterValue)) {
+                            showRow = false;
+                        }
+                    }
+                });
+                row.style.display = showRow ? '' : 'none';
+            });
+        }
+        
+        invoiceFilters.forEach(filter => {
+            filter.addEventListener('input', filterInvoiceTable);
+        });
+    }
+});
+</script>
 {% endblock %}

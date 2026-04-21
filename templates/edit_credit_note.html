@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Credit Note - Invoice Management Software{% endblock %}
+
+{% block content %}
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3"><i class="bi bi-pencil me-2"></i>Edit Credit Note</h2>
+            <a href="{{ url_for('credit_notes.manage_credit_notes') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Credit Notes
+            </a>
+        </div>
+        
+        <form method="POST" id="creditNoteForm">
+            <input type="hidden" name="credit_note_id" value="{{ credit_note.id }}">
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2">
+                    <h5 class="mb-0 text-primary">Credit Note Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Select Invoice *</label>
+                            <select name="invoice_id" id="invoiceSelect" class="form-select" required>
+                                <option value="">-- Select Invoice --</option>
+                                {% for inv in invoices %}
+                                <option value="{{ inv.id }}" {% if credit_note.invoice_id == inv.id %}selected{% endif %}>
+                                    {{ inv.invoice_no or 'Pending' }} - {{ inv.party.name if inv.party else 'Unknown' }} ({{ inv.invoice_date.strftime('%d-%m-%Y') }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Select Company *</label>
+                            <select name="company_id" id="companySelect" class="form-select" required>
+                                <option value="">-- Select Company --</option>
+                                {% for c in companies %}
+                                <option value="{{ c.id }}" data-name="{{ c.name }}" data-gstin="{{ c.gstin or '' }}" data-pan="{{ c.pan or '' }}" data-address="{{ c.address or '' }}" {% if credit_note.company_name == c.name %}selected{% endif %}>{{ c.name }} ({{ c.gstin or 'No GSTIN' }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Credit Note Date *</label>
+                            <input type="date" name="credit_note_date" class="form-control" required value="{{ credit_note.credit_note_date.strftime('%Y-%m-%d') }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Reason *</label>
+                            <select name="reason" class="form-select" required>
+                                <option value="">-- Select Reason --</option>
+                                <option value="Goods Returned" {% if credit_note.reason == 'Goods Returned' %}selected{% endif %}>Goods Returned</option>
+                                <option value="Price Adjustment" {% if credit_note.reason == 'Price Adjustment' %}selected{% endif %}>Price Adjustment</option>
+                                <option value="GST Correction" {% if credit_note.reason == 'GST Correction' %}selected{% endif %}>GST Correction</option>
+                                <option value="Quality Issue" {% if credit_note.reason == 'Quality Issue' %}selected{% endif %}>Quality Issue</option>
+                                <option value="Other" {% if credit_note.reason == 'Other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Tax Type *</label>
+                            <select name="tax_type" class="form-select" required id="taxType">
+                                <option value="INTRA" {% if credit_note.tax_type == 'INTRA' %}selected{% endif %}>Intra-state (CGST + SGST)</option>
+                                <option value="INTER" {% if credit_note.tax_type == 'INTER' %}selected{% endif %}>Inter-state (IGST)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label text-muted small">Place of Supply</label>
+                            <input type="text" name="place_of_supply" class="form-control" value="{{ credit_note.place_of_supply or '' }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                    <h5 class="mb-0 text-primary">Company Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Company Name</label>
+                            <input type="text" name="company_name" id="company_name" class="form-control" value="{{ credit_note.company_name or '' }}" readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">GSTIN</label>
+                            <input type="text" name="company_gstin" id="company_gstin" class="form-control" value="{{ credit_note.company_gstin or '' }}" readonly>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">PAN</label>
+                            <input type="text" name="company_pan" id="company_pan" class="form-control" value="{{ credit_note.company_pan or '' }}" readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Address</label>
+                            <textarea name="company_address" id="company_address" class="form-control" rows="2" readonly>{{ credit_note.company_address or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2 border-bottom-0">
+                    <h5 class="mb-0 text-primary">Party Details (from Invoice)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Party Name</label>
+                            <input type="text" class="form-control" value="{{ credit_note.party_name or '' }}" readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">GSTIN</label>
+                            <input type="text" class="form-control" value="{{ credit_note.party_gstin or '' }}" readonly>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-muted small">Address</label>
+                            <input type="text" class="form-control" value="{{ credit_note.party_address or '' }}" readonly>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label text-muted small">State</label>
+                            <input type="text" class="form-control" value="{{ credit_note.party_state or '' }}" readonly>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label text-muted small">State Code</label>
+                            <input type="text" class="form-control" value="{{ credit_note.party_state_code or '' }}" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-white pt-4 pb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 text-primary">Credit Note Items</h5>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addItemBtn">
+                            <i class="bi bi-plus-lg me-1"></i> Add Item
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="itemsTable">
+                            <thead>
+                                <tr class="table-light">
+                                    <th style="width: 40%;">Description *</th>
+                                    <th style="width: 15%;">Taxable Value *</th>
+                                    {% if credit_note.tax_type == 'INTER' %}
+                                    <th style="width: 10%;">IGST %</th>
+                                    <th style="width: 15%;">IGST Amount</th>
+                                    {% else %}
+                                    <th style="width: 10%;">CGST %</th>
+                                    <th style="width: 15%;">CGST Amount</th>
+                                    <th style="width: 10%;">SGST %</th>
+                                    <th style="width: 15%;">SGST Amount</th>
+                                    {% endif %}
+                                    <th style="width: 15%;">Total</th>
+                                    <th style="width: 5%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemsBody">
+                                {% for item in credit_note.items %}
+                                <tr>
+                                    <td><input type="text" name="item_description[]" class="form-control" value="{{ item.description }}" required></td>
+                                    <td><input type="number" name="item_taxable_value[]" class="form-control text-end taxable-input" value="{{ item.taxable_value }}" step="0.01" required></td>
+                                    {% if credit_note.tax_type == 'INTER' %}
+                                    <td><input type="number" name="item_igst_rate[]" class="form-control text-end igst-input" value="{{ item.igst_rate }}" step="0.01"></td>
+                                    <td class="text-end igst-amt">₹{{ "%.2f"|format(item.igst_amt) }}</td>
+                                    {% else %}
+                                    <td><input type="number" name="item_cgst_rate[]" class="form-control text-end cgst-input" value="{{ item.cgst_rate }}" step="0.01"></td>
+                                    <td class="text-end cgst-amt">₹{{ "%.2f"|format(item.cgst_amt) }}</td>
+                                    <td><input type="number" name="item_sgst_rate[]" class="form-control text-end sgst-input" value="{{ item.sgst_rate }}" step="0.01"></td>
+                                    <td class="text-end sgst-amt">₹{{ "%.2f"|format(item.sgst_amt) }}</td>
+                                    {% endif %}
+                                    <td class="text-end item-total">₹{{ "%.2f"|format(item.taxable_value + item.igst_amt + item.cgst_amt + item.sgst_amt) }}</td>
+                                    <td><button type="button" class="btn btn-sm btn-outline-danger remove-item"><i class="bi bi-trash"></i></button></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="{% if credit_note.tax_type == 'INTER' %}2{% else %}4{% endif %}" class="text-end fw-bold">Total:</td>
+                                    <td class="text-end" id="taxableTotal">₹{{ "%.2f"|format(credit_note.calculate_gst().subtotal) }}</td>
+                                    {% if credit_note.tax_type == 'INTER' %}
+                                    <td></td>
+                                    <td class="text-end" id="igstTotal">₹{{ "%.2f"|format(credit_note.calculate_gst().igst) }}</td>
+                                    {% else %}
+                                    <td></td>
+                                    <td class="text-end" id="cgstTotal">₹{{ "%.2f"|format(credit_note.calculate_gst().cgst) }}</td>
+                                    <td></td>
+                                    <td class="text-end" id="sgstTotal">₹{{ "%.2f"|format(credit_note.calculate_gst().sgst) }}</td>
+                                    {% endif %}
+                                    <td class="text-end fw-bold" id="grandTotal">₹{{ "%.2f"|format(credit_note.calculate_gst().total) }}</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-end mb-4">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save me-1"></i> Update Credit Note
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('invoiceSelect').addEventListener('change', function() {
+        const invoiceId = this.value;
+        if (invoiceId) {
+            window.location.href = '{{ url_for("credit_notes.edit_credit_note", credit_note_id=credit_note.id) }}?invoice_id=' + invoiceId;
+        }
+    });
+
+    document.getElementById('companySelect').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption.value) {
+            document.getElementById('company_name').value = selectedOption.dataset.name || '';
+            document.getElementById('company_gstin').value = selectedOption.dataset.gstin || '';
+            document.getElementById('company_pan').value = selectedOption.dataset.pan || '';
+            document.getElementById('company_address').value = selectedOption.dataset.address || '';
+        } else {
+            document.getElementById('company_name').value = '';
+            document.getElementById('company_gstin').value = '';
+            document.getElementById('company_pan').value = '';
+            document.getElementById('company_address').value = '';
+        }
+    });
+
+    function applyTaxTypeDefaults() {
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        
+        if (isInter) {
+            document.querySelectorAll('.igst-input').forEach(input => { if(input.value == '0') input.value = 18; });
+            document.querySelectorAll('.cgst-input').forEach(input => input.value = 0);
+            document.querySelectorAll('.sgst-input').forEach(input => input.value = 0);
+        } else {
+            document.querySelectorAll('.igst-input').forEach(input => input.value = 0);
+            document.querySelectorAll('.cgst-input').forEach(input => { if(input.value == '0') input.value = 9; });
+            document.querySelectorAll('.sgst-input').forEach(input => { if(input.value == '0') input.value = 9; });
+        }
+    }
+    
+    document.getElementById('taxType').addEventListener('change', function() {
+        applyTaxTypeDefaults();
+        calculateAllRows();
+    });
+    
+    document.getElementById('addItemBtn').addEventListener('click', function() {
+        const tbody = document.getElementById('itemsBody');
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        
+        const row = document.createElement('tr');
+        let html = `
+            <td><input type="text" name="item_description[]" class="form-control" required></td>
+            <td><input type="number" name="item_taxable_value[]" class="form-control text-end taxable-input" value="0" step="0.01" required></td>
+        `;
+        
+        if (isInter) {
+            html += `
+                <td><input type="number" name="item_igst_rate[]" class="form-control text-end igst-input" value="18" step="0.01"></td>
+                <td class="text-end igst-amt">₹0.00</td>
+            `;
+        } else {
+            html += `
+                <td><input type="number" name="item_cgst_rate[]" class="form-control text-end cgst-input" value="9" step="0.01"></td>
+                <td class="text-end cgst-amt">₹0.00</td>
+                <td><input type="number" name="item_sgst_rate[]" class="form-control text-end sgst-input" value="9" step="0.01"></td>
+                <td class="text-end sgst-amt">₹0.00</td>
+            `;
+        }
+        
+        html += `
+            <td class="text-end item-total">₹0.00</td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger remove-item"><i class="bi bi-trash"></i></button></td>
+        `;
+        
+        row.innerHTML = html;
+        tbody.appendChild(row);
+        
+        row.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', calculateAllRows);
+        });
+        
+        row.querySelector('.remove-item').addEventListener('click', function() {
+            if (tbody.querySelectorAll('tr').length > 1) {
+                row.remove();
+                calculateAllRows();
+            }
+        });
+    });
+
+    function calculateRow(row) {
+        const taxable = parseFloat(row.querySelector('.taxable-input').value) || 0;
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        
+        let total = taxable;
+        
+        if (isInter) {
+            const igstRate = parseFloat(row.querySelector('.igst-input').value) || 0;
+            const igstAmt = taxable * igstRate / 100;
+            row.querySelector('.igst-amt').textContent = '₹' + igstAmt.toFixed(2);
+            total += igstAmt;
+        } else {
+            const cgstRate = parseFloat(row.querySelector('.cgst-input').value) || 0;
+            const sgstRate = parseFloat(row.querySelector('.sgst-input').value) || 0;
+            const cgstAmt = taxable * cgstRate / 100;
+            const sgstAmt = taxable * sgstRate / 100;
+            row.querySelector('.cgst-amt').textContent = '₹' + cgstAmt.toFixed(2);
+            row.querySelector('.sgst-amt').textContent = '₹' + sgstAmt.toFixed(2);
+            total += cgstAmt + sgstAmt;
+        }
+        
+        row.querySelector('.item-total').textContent = '₹' + total.toFixed(2);
+        return { taxable, igst: isInter ? (taxable * (parseFloat(row.querySelector('.igst-input').value) || 0) / 100) : 0, cgst: !isInter ? (taxable * (parseFloat(row.querySelector('.cgst-input').value) || 0) / 100) : 0, sgst: !isInter ? (taxable * (parseFloat(row.querySelector('.sgst-input').value) || 0) / 100) : 0 };
+    }
+
+    function calculateAllRows() {
+        const rows = document.querySelectorAll('#itemsBody tr');
+        let totals = { taxable: 0, igst: 0, cgst: 0, sgst: 0 };
+        
+        rows.forEach(row => {
+            const rowTotals = calculateRow(row);
+            totals.taxable += rowTotals.taxable;
+            totals.igst += rowTotals.igst;
+            totals.cgst += rowTotals.cgst;
+            totals.sgst += rowTotals.sgst;
+        });
+        
+        const isInter = document.getElementById('taxType').value === 'INTER';
+        
+        document.getElementById('taxableTotal').textContent = '₹' + totals.taxable.toFixed(2);
+        
+        if (isInter) {
+            document.getElementById('igstTotal').textContent = '₹' + totals.igst.toFixed(2);
+        } else {
+            document.getElementById('cgstTotal').textContent = '₹' + totals.cgst.toFixed(2);
+            document.getElementById('sgstTotal').textContent = '₹' + totals.sgst.toFixed(2);
+        }
+        
+        const grandTotal = totals.taxable + totals.igst + totals.cgst + totals.sgst;
+        document.getElementById('grandTotal').textContent = '₹' + grandTotal.toFixed(2);
+    }
+
+    document.querySelectorAll('#itemsBody tr input').forEach(input => {
+        input.addEventListener('input', calculateAllRows);
+    });
+
+    document.querySelectorAll('.remove-item').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tbody = document.getElementById('itemsBody');
+            if (tbody.querySelectorAll('tr').length > 1) {
+                this.closest('tr').remove();
+                calculateAllRows();
+            }
+        });
+    });
+
+    calculateAllRows();
+</script>
+{% endblock %}

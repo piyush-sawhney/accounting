@@ -44,14 +44,14 @@
                 {% endfor %}
             </div>
             
-            <a href="{{ url_for('download_setup_codes') }}" class="btn btn-outline-success btn-sm">
+            <a href="{{ url_for('auth.download_setup_codes') }}" class="btn btn-outline-success btn-sm">
                 <i class="bi bi-download me-1"></i> Download as Text File
             </a>
         </div>
 
         <div class="text-center">
             <p class="text-muted small mb-4">Each code can only be used once. Once you log in, you can generate new codes from the user management panel.</p>
-            <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg w-100">Continue to Login</a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg w-100">Continue to Login</a>
         </div>
     </div>
     

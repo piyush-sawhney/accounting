@@ -96,7 +96,7 @@ class Invoice(db.Model):
     sac_hsn_code = db.Column(db.String(20), nullable=True)
 
     total_in_words = db.Column(db.String(500), nullable=True)
-    reverse_charge = db.Column(db.Float, nullable=True, default=0)
+    reverse_charge = db.Column(db.Numeric(18, 2), nullable=True, default=0)
     is_rcm = db.Column(db.Boolean, nullable=True, default=False)
     distributor_code = db.Column(db.String(100), nullable=True)
 
@@ -246,6 +246,16 @@ class ConfigStore(db.Model):
         return {"id": self.id, "key": self.key, "value": self.value}
 
 
+
+class InvoiceSequence(db.Model):
+    __tablename__ = "invoice_sequences"
+    id = db.Column(db.Integer, primary_key=True)
+    fy = db.Column(db.String(10), unique=True, nullable=False)
+    last_number = db.Column(db.Integer, default=0)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+
+
+
 class InvoiceItem(db.Model):
     __tablename__ = "invoice_items"
 
@@ -254,14 +264,14 @@ class InvoiceItem(db.Model):
     description = db.Column(db.String(500), nullable=False)
     sac_hsn_code = db.Column(db.String(20), nullable=True)
 
-    taxable_value = db.Column(db.Float, nullable=False, default=0)
+    taxable_value = db.Column(db.Numeric(18, 2), nullable=False, default=0)
 
     cgst_rate = db.Column(db.Float, nullable=True, default=0)
-    cgst_amt = db.Column(db.Float, nullable=True, default=0)
+    cgst_amt = db.Column(db.Numeric(18, 2), nullable=True, default=0)
     sgst_rate = db.Column(db.Float, nullable=True, default=0)
-    sgst_amt = db.Column(db.Float, nullable=True, default=0)
+    sgst_amt = db.Column(db.Numeric(18, 2), nullable=True, default=0)
     igst_rate = db.Column(db.Float, nullable=True, default=0)
-    igst_amt = db.Column(db.Float, nullable=True, default=0)
+    igst_amt = db.Column(db.Numeric(18, 2), nullable=True, default=0)
 
     def to_dict(self):
         return {
@@ -379,14 +389,14 @@ class CreditNoteItem(db.Model):
     )
     description = db.Column(db.String(500), nullable=False)
 
-    taxable_value = db.Column(db.Float, nullable=False, default=0)
+    taxable_value = db.Column(db.Numeric(18, 2), nullable=False, default=0)
 
     cgst_rate = db.Column(db.Float, nullable=True, default=0)
-    cgst_amt = db.Column(db.Float, nullable=True, default=0)
+    cgst_amt = db.Column(db.Numeric(18, 2), nullable=True, default=0)
     sgst_rate = db.Column(db.Float, nullable=True, default=0)
-    sgst_amt = db.Column(db.Float, nullable=True, default=0)
+    sgst_amt = db.Column(db.Numeric(18, 2), nullable=True, default=0)
     igst_rate = db.Column(db.Float, nullable=True, default=0)
-    igst_amt = db.Column(db.Float, nullable=True, default=0)
+    igst_amt = db.Column(db.Numeric(18, 2), nullable=True, default=0)
 
     def to_dict(self):
         return {

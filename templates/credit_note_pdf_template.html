@@ -5,29 +5,29 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #212121; margin: 0; padding: 0; }
         .invoice-container { max-width: 210mm; margin: 0 auto; background: white; }
-        .header { text-align: center; margin-bottom: 4mm; padding-bottom: 3mm; border-bottom: 2px solid #000000; }
-        .header h1 { font-size: 18pt; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: #000000; margin: 0; }
+        .header { text-align: center; margin-bottom: 6mm; padding-bottom: 4mm; border-bottom: 2px solid #000000; }
+        .header h1 { font-size: 20pt; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: #000000; margin: 0; }
         .header .subtitle { font-size: 10pt; color: #757575; margin-top: 2mm; }
-        .info-table { display: table; width: 100%; margin-bottom: 4mm; }
-        .info-cell { display: table-cell; text-align: center; padding: 2mm; border: 1px solid #e0e0e0; background-color: #ffffff; }
-        .label { font-size: 7pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 1mm; }
-        .value { font-size: 9pt; font-weight: 700; }
-        .details-table { display: table; width: 100%; margin-bottom: 4mm; }
-        .details-cell { display: table-cell; padding: 2mm; vertical-align: top; border: 1px solid #e0e0e0; }
-        .section-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #757575; margin-bottom: 2mm; padding-bottom: 1mm; border-bottom: 1px solid #e0e0e0; }
-        .text-main { font-size: 9pt; font-weight: 700; color: #212121; margin-bottom: 2mm; }
-        .text-sub { font-size: 9pt; margin: 2px 0; color: #424242; }
-        .items-table { border-collapse: collapse; width: 100%; font-size: 8pt; }
-        .items-table th { padding: 3mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 8pt; font-weight: 700; text-transform: uppercase; background-color: #f8f9fa; color: #757575; }
-        .items-table td { padding: 2mm; border: 1px solid #e0e0e0; font-size: 9pt; color: #424242; }
+        .info-table { display: table; width: 100%; margin-bottom: 6mm; }
+        .info-cell { display: table-cell; text-align: center; padding: 3mm; border: 1px solid #e0e0e0; background-color: #ffffff; }
+        .label { font-size: 9pt; font-weight: 600; color: #757575; text-transform: uppercase; margin-bottom: 2mm; }
+        .value { font-size: 11pt; font-weight: 700; }
+        .details-table { display: table; width: 100%; margin-bottom: 6mm; }
+        .details-cell { display: table-cell; padding: 3mm; vertical-align: top; border: 1px solid #e0e0e0; }
+        .section-label { font-size: 9pt; font-weight: 700; text-transform: uppercase; color: #757575; margin-bottom: 3mm; padding-bottom: 2mm; border-bottom: 1px solid #e0e0e0; }
+        .text-main { font-size: 11pt; font-weight: 700; color: #212121; margin-bottom: 3mm; }
+        .text-sub { font-size: 10pt; margin: 3px 0; color: #424242; }
+        .items-table { border-collapse: collapse; width: 100%; font-size: 10pt; }
+        .items-table th { padding: 4mm; text-align: center; vertical-align: middle; border: 1px solid #e0e0e0; font-size: 10pt; font-weight: 700; text-transform: uppercase; background-color: #f8f9fa; color: #757575; }
+        .items-table td { padding: 3mm; border: 1px solid #e0e0e0; font-size: 10pt; color: #424242; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
         .fw-bold { font-weight: 600; }
-        .reason-box { margin-top: 3mm; padding: 2mm; background-color: #f5f5f5; border-radius: 4px; font-size: 9pt; }
-        .signature-section { margin-top: 10mm; }
-        .company-name { font-size: 9pt; color: #212121; }
-        .sig-line { border-top: 1px solid #e0e0e0; width: 30%; margin-bottom: 2mm; margin-top: 10mm; }
-        .sig-label { font-size: 8pt; font-weight: 600; color: #757575; }
+        .reason-box { margin-top: 4mm; padding: 3mm; background-color: #f5f5f5; border-radius: 4px; font-size: 10pt; }
+        .signature-section { margin-top: 12mm; }
+        .company-name { font-size: 11pt; color: #212121; }
+        .sig-line { border-top: 1px solid #e0e0e0; width: 30%; margin-bottom: 2mm; margin-top: 12mm; }
+        .sig-label { font-size: 9pt; font-weight: 600; color: #757575; }
     </style>
 </head>
 <body>
@@ -163,12 +163,6 @@
                 </tr>
             </tbody>
         </table>
-        
-        {% if credit_note.reason %}
-        <div class="reason-box">
-            <strong>Reason:</strong> {{ credit_note.reason }}
-        </div>
-        {% endif %}
         
         <div class="signature-section">
             <div class="company-name">For {{ settings.company_name }}</div>
