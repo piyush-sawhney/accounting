@@ -1,0 +1,4 @@
+name,gstin,pan,amc_code,address,state,state_code
+Test Party 1,27AAACM1234A1Z5,AAACM1234A,AMC001,123 Test Address,Maharashtra,27
+Test Party 2,29AAACP5678A1Z5,AAACP5678A,AMC002,456 New Address,Karnataka,29
+Test Party 3,30AAACQ9012A1Z5,AAACQ9012A,AMC003,789 Another Address,Gujarat,24

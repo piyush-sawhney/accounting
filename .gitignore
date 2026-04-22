@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 instance/
 exports/
+temp_exports/
 *.db
 app.py.backup
 =======

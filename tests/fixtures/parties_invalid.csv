@@ -1,0 +1,3 @@
+name,gstin,pan,amc_code,address,state,state_code
+,27AAACM0000A1Z5,,,No Name Address,Maharashtra,27
+Test Invalid,,ABCDE1234F,AMC000,No GSTIN Address,Maharashtra,27

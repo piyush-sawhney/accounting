@@ -1,0 +1,3 @@
+credit_note_date,reference_invoice_number,party_gstin,reason,description,taxable_value,tax_type,cgst_rate,sgst_rate,igst_rate,place_of_supply
+2026-04-22,INV/NONEXIST/999,27AAACM1234A1Z5,Test,Non Existent Invoice,1000,INTRA,9,9,0,Maharashtra
+2026-04-23,INV/2026/001,00NOTEXIST0000A,Test,Non Existent Party,1000,INTRA,9,9,0,Maharashtra

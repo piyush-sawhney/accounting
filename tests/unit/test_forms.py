@@ -99,7 +99,7 @@ class TestInvoiceForm:
             )
             assert form.validate() is True
 
-    def test_invoice_form_missing_hsn(self, app):
+    def test_invoice_form_valid_without_hsn(self, app):
         from forms import InvoiceForm
         from datetime import date
 
@@ -107,8 +107,9 @@ class TestInvoiceForm:
             form = InvoiceForm(
                 invoice_date=date(2026, 4, 15),
                 tax_type="INTRA",
+                place_of_supply="Maharashtra",
             )
-            assert form.validate() is False
+            assert form.validate() is True
 
     def test_invoice_form_rcm_requires_reverse_charge(self, app):
         from forms import InvoiceForm

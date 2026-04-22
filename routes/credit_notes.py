@@ -29,7 +29,7 @@ def manage_credit_notes():
     search_query = search
     invoice_filter = request.args.get("invoice", "")
 
-    query = CreditNote.query.join(Invoice)
+    query = CreditNote.query.join(Invoice, CreditNote.invoice_id == Invoice.id).join(Party, Invoice.party_id == Party.id)
 
     if year:
         query = query.filter(db.extract("year", CreditNote.credit_note_date) == int(year))
@@ -112,7 +112,7 @@ def create_credit_note():
 
         company_id = request.form.get("company_id")
         if company_id:
-            company = Company.query.get(company_id)
+            company = db.session.get(Company, company_id)
             if company:
                 credit_note.company_name = company.name
                 credit_note.company_address = company.address
@@ -171,7 +171,7 @@ def create_credit_note():
     invoice_items = None
     selected_company = None
     if invoice_id:
-        selected_invoice = Invoice.query.get(invoice_id)
+        selected_invoice = db.session.get(Invoice, invoice_id)
         if selected_invoice:
             invoice_items = selected_invoice.items
             if selected_invoice.company_name:
@@ -221,7 +221,7 @@ def edit_credit_note(credit_note_id):
         
         company_id = request.form.get("company_id")
         if company_id:
-            company = Company.query.get(company_id)
+            company = db.session.get(Company, company_id)
             if company:
                 credit_note.company_name = company.name
                 credit_note.company_address = company.address

@@ -1,0 +1,3 @@
+invoice_no,reference_serial_no,invoice_date,party_gstin,description,sac_hsn_code,taxable_value,tax_type,cgst_rate,sgst_rate,igst_rate,place_of_supply,reverse_charge,is_rcm,distributor_code
+INV/2026/100,REFRCM001,2026-04-15,27AAACM1234A1Z5,RCM Service - GST,9971,10000,INTRA,9,9,0,Maharashtra,1180,1,DISTRCM001
+INV/2026/101,REFRCM002,2026-04-16,29AAACP5678A1Z5,RCM Service - IGST,9971,15000,INTER,0,0,18,Karnataka,2700,1,DISTRCM002

@@ -1,0 +1,4 @@
+invoice_no,reference_serial_no,invoice_date,party_gstin,description,sac_hsn_code,taxable_value,tax_type,cgst_rate,sgst_rate,igst_rate,place_of_supply,reverse_charge,is_rcm,distributor_code
+INV/2026/001,REF001,2026-04-15,27AAACM1234A1Z5,Consulting Services,9971,10000,INTRA,9,9,0,Maharashtra,0,0,DIST001
+INV/2026/002,REF002,2026-04-16,29AAACP5678A1Z5,Software Development,9971,25000,INTER,0,0,18,Karnataka,0,0,
+INV/2026/003,REF003,2026-04-17,27AAACM1234A1Z5,Technical Support,9971,5000,INTRA,9,9,0,Maharashtra,0,0,

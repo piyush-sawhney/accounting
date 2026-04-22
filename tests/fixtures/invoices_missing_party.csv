@@ -1,0 +1,2 @@
+invoice_no,reference_serial_no,invoice_date,party_gstin,description,sac_hsn_code,taxable_value,tax_type,cgst_rate,sgst_rate,igst_rate,place_of_supply,reverse_charge,is_rcm,distributor_code
+,REF005,2026-04-19,00NOTEXIST0000A,Non Existent Party,9971,3000,INTRA,9,9,0,Maharashtra,0,0,
