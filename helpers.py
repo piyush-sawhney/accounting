@@ -254,11 +254,13 @@ def calculate_party_growth_data(
     this_month_last_year_start,
     this_month_last_year_end,
 ):
-    """Calculate party growth data using SQL aggregations for performance."""
+    """Calculate party growth data using SQL aggregations for performance.
     
-    # Define the aggregation query
-    # We join Invoice and InvoiceItem and sum taxable_value for non-RCM invoices in specified ranges
-    stats_query = db.session.query(
+    Calculates net amounts = Invoice taxable_value - CreditNote taxable_value
+    """
+    from models import CreditNote, CreditNoteItem
+
+    invoice_stats_query = db.session.query(
         Invoice.party_id,
         func.sum(case(((Invoice.invoice_date >= period_start) & (Invoice.invoice_date <= period_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('this_month'),
         func.sum(case(((Invoice.invoice_date >= last_month_start) & (Invoice.invoice_date <= last_month_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('last_month'),
@@ -269,33 +271,63 @@ def calculate_party_growth_data(
         func.sum(case(((Invoice.invoice_date >= this_month_last_year_start) & (Invoice.invoice_date <= this_month_last_year_end) & (Invoice.is_rcm == False), InvoiceItem.taxable_value), else_=0)).label('this_month_last_year'),
     ).join(InvoiceItem).group_by(Invoice.party_id).all()
 
-    party_stats = {row.party_id: row for row in stats_query}
-    
+    invoice_stats = {row.party_id: row for row in invoice_stats_query}
+
+    credit_note_stats_query = db.session.query(
+        Invoice.party_id,
+        func.sum(case(((CreditNote.credit_note_date >= period_start) & (CreditNote.credit_note_date <= period_end), CreditNoteItem.taxable_value), else_=0)).label('this_month'),
+        func.sum(case(((CreditNote.credit_note_date >= last_month_start) & (CreditNote.credit_note_date <= last_month_end), CreditNoteItem.taxable_value), else_=0)).label('last_month'),
+        func.sum(case(((CreditNote.credit_note_date >= two_months_back_start) & (CreditNote.credit_note_date <= two_months_back_end), CreditNoteItem.taxable_value), else_=0)).label('two_months_ago'),
+        func.sum(case(((CreditNote.credit_note_date >= three_months_start) & (CreditNote.credit_note_date <= three_months_end), CreditNoteItem.taxable_value), else_=0)).label('three_months_ago'),
+        func.sum(case(((CreditNote.credit_note_date >= four_months_start) & (CreditNote.credit_note_date <= four_months_end), CreditNoteItem.taxable_value), else_=0)).label('four_months_ago'),
+        func.sum(case(((CreditNote.credit_note_date >= last_3m_start) & (CreditNote.credit_note_date <= last_3m_end), CreditNoteItem.taxable_value), else_=0)).label('last_3m'),
+        func.sum(case(((CreditNote.credit_note_date >= this_month_last_year_start) & (CreditNote.credit_note_date <= this_month_last_year_end), CreditNoteItem.taxable_value), else_=0)).label('this_month_last_year'),
+    ).join(CreditNote, CreditNote.invoice_id == Invoice.id).join(CreditNoteItem).group_by(Invoice.party_id).all()
+
+    credit_note_stats = {row.party_id: row for row in credit_note_stats_query}
+
     party_growth_data = []
     max_revenue = 0
 
     for party in parties:
-        stats = party_stats.get(party.id)
-        
-        this_month_rev = float(stats.this_month) if stats else 0.0
-        last_month_rev = float(stats.last_month) if stats else 0.0
-        two_months_ago_rev = float(stats.two_months_ago) if stats else 0.0
-        three_months_ago_rev = float(stats.three_months_ago) if stats else 0.0
-        four_months_ago_rev = float(stats.four_months_ago) if stats else 0.0
-        last_3m_rev = float(stats.last_3m) if stats else 0.0
-        this_month_last_year_rev = float(stats.this_month_last_year) if stats else 0.0
+        inv_stats = invoice_stats.get(party.id)
+        cn_stats = credit_note_stats.get(party.id)
 
-        if this_month_rev > max_revenue:
-            max_revenue = this_month_rev
+        this_month_rev = float(inv_stats.this_month) if inv_stats else 0.0
+        this_month_cn = float(cn_stats.this_month) if cn_stats else 0.0
+        this_month_net = this_month_rev - this_month_cn
+
+        last_month_rev = float(inv_stats.last_month) if inv_stats else 0.0
+        last_month_cn = float(cn_stats.last_month) if cn_stats else 0.0
+        last_month_net = last_month_rev - last_month_cn
+
+        two_months_ago_rev = float(inv_stats.two_months_ago) if inv_stats else 0.0
+        two_months_ago_cn = float(cn_stats.two_months_ago) if cn_stats else 0.0
+        two_months_ago_net = two_months_ago_rev - two_months_ago_cn
+
+        three_months_ago_rev = float(inv_stats.three_months_ago) if inv_stats else 0.0
+        three_months_ago_cn = float(cn_stats.three_months_ago) if cn_stats else 0.0
+        three_months_ago_net = three_months_ago_rev - three_months_ago_cn
+
+        four_months_ago_rev = float(inv_stats.four_months_ago) if inv_stats else 0.0
+
+        last_3m_rev = float(inv_stats.last_3m) if inv_stats else 0.0
+
+        this_month_last_year_rev = float(inv_stats.this_month_last_year) if inv_stats else 0.0
+        this_month_last_year_cn = float(cn_stats.this_month_last_year) if cn_stats else 0.0
+        this_month_last_year_net = this_month_last_year_rev - this_month_last_year_cn
+
+        if this_month_net > max_revenue:
+            max_revenue = this_month_net
 
         party_growth_data.append(
             {
                 "name": party.name,
-                "this_month": this_month_rev,
-                "this_month_last_year": this_month_last_year_rev,
-                "last_month": last_month_rev,
-                "two_months_ago": two_months_ago_rev,
-                "three_months_ago": three_months_ago_rev,
+                "this_month": this_month_net,
+                "this_month_last_year": this_month_last_year_net,
+                "last_month": last_month_net,
+                "two_months_ago": two_months_ago_net,
+                "three_months_ago": three_months_ago_net,
                 "four_months_ago": four_months_ago_rev,
                 "last_3m": last_3m_rev,
                 "growth": 0,

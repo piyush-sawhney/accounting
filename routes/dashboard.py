@@ -90,6 +90,12 @@ def dashboard():
     greeting = "Good Morning" if datetime.now().hour < 12 else "Good Afternoon" if datetime.now().hour < 17 else "Good Evening"
     trend_months = get_trend_months()
 
+    current_month_label = f"{get_month_name(datetime.now().month)} {datetime.now().year}"
+    previous_month_label = f"{get_month_name(last_month_start.month)} {last_month_start.year}"
+    two_months_ago_label = f"{get_month_name(two_months_back_start.month)} {two_months_back_start.year}"
+    three_months_ago_label = f"{get_month_name(three_months_start.month)} {three_months_start.year}"
+    four_months_ago_label = f"{get_month_name(four_months_start.month)} {four_months_start.year}"
+
     return render_template(
         "dashboard.html",
         invoices=invoices[:5],
@@ -113,4 +119,9 @@ def dashboard():
         trend_months=trend_months,
         current_year=datetime.now().year,
         this_month_last_year_label=this_month_last_year_label,
+        current_month_label=current_month_label,
+        previous_month_label=previous_month_label,
+        two_months_ago_label=two_months_ago_label,
+        three_months_ago_label=three_months_ago_label,
+        four_months_ago_label=four_months_ago_label,
     )
