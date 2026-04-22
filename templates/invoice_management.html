@@ -85,7 +85,7 @@
                     </div>
                     <div class="col-md-3 d-flex align-items-end">
                         <button type="submit" class="btn btn-outline-primary me-2 flex-grow-1">Filter</button>
-                        <a href="{{ url_for('invoices.manage_invoices') }}" class="btn btn-outline-secondary flex-grow-1">Reset</a>
+                        <a href="{{ url_for('invoices.manage_invoices', year='', month='') }}" class="btn btn-outline-secondary flex-grow-1">Reset</a>
                     </div>
                 </form>
             </div>

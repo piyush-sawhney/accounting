@@ -27,6 +27,11 @@ invoices_bp = Blueprint('invoices', __name__)
 def manage_invoices():
     year = request.args.get("year")
     month = request.args.get("month")
+    # Only set defaults if not explicitly provided (for first load)
+    if year is None:
+        year = str(datetime.now().year)
+    if month is None:
+        month = str(datetime.now().month).zfill(2)
     search = request.args.get("search", "").strip()
     sort_by = request.args.get("sort_by", "date")
     sort_dir = request.args.get("sort_dir", "desc")
