@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm Import - Invoice Management Software{% endblock %}
+
+{% block content %}
+<div class="col-md-10 py-4">
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3"><i class="bi bi-building me-2"></i>Confirm Import</h2>
+            <a href="{{ url_for('company.import_companies') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back to Import
+            </a>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-white pt-4 pb-2">
+                <h5 class="mb-0 text-primary">Default Company Change</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">The import will change the default company. Please review the details below:</p>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-1">Current Default</h6>
+                                <p class="mb-0 fw-bold">{{ previous_default }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-primary bg-opacity-10">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-1">New Default (from CSV)</h6>
+                                <p class="mb-0 fw-bold">{{ new_default }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> This will change the default company for all new invoices. Are you sure you want to proceed?
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('company.import_companies_confirm') }}">
+            <input type="hidden" name="confirm_action" id="confirm_action" value="">
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-secondary" id="cancelBtn">
+                    <i class="bi bi-x-lg me-1"></i> Cancel
+                </button>
+                <button type="submit" class="btn btn-primary" id="confirmBtn">
+                    <i class="bi bi-check-lg me-1"></i> Confirm & Import
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('cancelBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    document.getElementById('confirm_action').value = 'cancel';
+    this.closest('form').submit();
+});
+
+document.getElementById('confirmBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    document.getElementById('confirm_action').value = 'confirm';
+    this.closest('form').submit();
+});
+</script>
+{% endblock %}
