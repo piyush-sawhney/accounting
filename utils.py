@@ -88,6 +88,10 @@ def get_fiscal_year():
     now = datetime.now()
     return f"{now.year}-{now.year + 1}" if now.month >= 4 else f"{now.year - 1}-{now.year}"
 
+def get_fy_short():
+    fy = get_fiscal_year()
+    return fy.replace("-", "_")
+
 def get_current_company():
     company = Company.query.filter_by(is_default=True).first()
     return company or Company.query.first()
