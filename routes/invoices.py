@@ -195,7 +195,7 @@ def create_invoice():
     
     if request.method == "POST":
         party_id = request.form.get("party_id")
-        invoice_no = request.form.get("invoice_no", "").strip()
+        invoice_no = request.form.get("invoice_no", "").strip() or None
         reference_serial_no = request.form.get("reference_serial_no", "").strip()
 
         if not party_id:
