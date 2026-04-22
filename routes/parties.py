@@ -37,21 +37,30 @@ def parties():
         email = request.form.get("email")
         phone = request.form.get("phone")
 
-        existing = Party.query.filter_by(gstin=gstin).first()
+        # Basic validation
+        if not name or not name.strip():
+            flash("Party name is required", "danger")
+            return redirect(url_for("parties.parties"))
+        
+        if not gstin or not gstin.strip():
+            flash("GSTIN is required", "danger")
+            return redirect(url_for("parties.parties"))
+
+        existing = Party.query.filter_by(gstin=gstin.strip()).first()
         if existing:
-            flash(f"Party with GSTIN {gstin} already exists", "danger")
+            flash(f"Party with GSTIN {gstin.strip()} already exists", "danger")
             return redirect(url_for("parties.parties"))
 
         party = Party(
-            name=name,
-            gstin=gstin,
-            amc_code=amc_code,
-            pan=pan,
-            address=address,
-            state=state,
-            state_code=state_code,
-            email=email,
-            phone=phone,
+            name=name.strip(),
+            gstin=gstin.strip(),
+            amc_code=amc_code.strip() if amc_code else None,
+            pan=pan.strip() if pan else None,
+            address=address.strip() if address else None,
+            state=state.strip() if state else None,
+            state_code=state_code.strip() if state_code else None,
+            email=email.strip() if email else None,
+            phone=phone.strip() if phone else None,
         )
         db.session.add(party)
         db.session.commit()
@@ -71,6 +80,52 @@ def parties():
     return render_template(
         "parties.html", parties=parties_list, sort_by=sort_by, sort_dir=sort_dir
     )
+
+
+@parties_bp.route("/party/create", methods=["GET", "POST"])
+@login_required
+def create_party():
+    if request.method == "POST":
+        name = request.form.get("name")
+        gstin = request.form.get("gstin")
+        amc_code = request.form.get("amc_code")
+        pan = request.form.get("pan")
+        address = request.form.get("address")
+        state = request.form.get("state")
+        state_code = request.form.get("state_code")
+        email = request.form.get("email")
+        phone = request.form.get("phone")
+
+        if not name or not name.strip():
+            flash("Party name is required", "danger")
+            return redirect(url_for("parties.create_party"))
+        
+        if not gstin or not gstin.strip():
+            flash("GSTIN is required", "danger")
+            return redirect(url_for("parties.create_party"))
+
+        existing = Party.query.filter_by(gstin=gstin.strip()).first()
+        if existing:
+            flash(f"Party with GSTIN {gstin.strip()} already exists", "danger")
+            return redirect(url_for("parties.create_party"))
+
+        party = Party(
+            name=name.strip(),
+            gstin=gstin.strip(),
+            amc_code=amc_code.strip() if amc_code else None,
+            pan=pan.strip() if pan else None,
+            address=address.strip() if address else None,
+            state=state.strip() if state else None,
+            state_code=state_code.strip() if state_code else None,
+            email=email.strip() if email else None,
+            phone=phone.strip() if phone else None,
+        )
+        db.session.add(party)
+        db.session.commit()
+        flash("Party added successfully", "success")
+        return redirect(url_for("parties.parties"))
+
+    return render_template("create_party.html")
 
 
 @parties_bp.route("/export/parties")
@@ -102,8 +157,6 @@ def export_parties_response(parties_list):
             "address",
             "state",
             "state_code",
-            "email",
-            "phone",
         ]
     )
 
@@ -117,8 +170,6 @@ def export_parties_response(parties_list):
                 party.address or "",
                 party.state or "",
                 party.state_code or "",
-                party.email or "",
-                party.phone or "",
             ]
         )
 
@@ -196,6 +247,7 @@ def import_parties():
         csv_reader = csv.DictReader(stream)
 
         imported = 0
+        updated = 0
         errors = []
 
         for row_num, row in enumerate(csv_reader, start=2):
@@ -212,31 +264,36 @@ def import_parties():
                     existing.name = name
                     if row.get("pan"):
                         existing.pan = row.get("pan").strip().upper()
+                    if row.get("amc_code"):
+                        existing.amc_code = row.get("amc_code").strip().upper()
                     if row.get("address"):
                         existing.address = row.get("address").strip()
                     if row.get("state"):
                         existing.state = row.get("state").strip()
                     if row.get("state_code"):
                         existing.state_code = row.get("state_code").strip()
+                    updated += 1
                 else:
                     party = Party(
                         name=name,
                         gstin=gstin,
                         pan=row.get("pan", "").strip().upper() if row.get("pan") else None,
+                        amc_code=row.get("amc_code", "").strip().upper() if row.get("amc_code") else None,
                         address=row.get("address", "").strip() if row.get("address") else None,
                         state=row.get("state", "").strip() if row.get("state") else None,
                         state_code=row.get("state_code", "").strip() if row.get("state_code") else None,
-                        email=row.get("email", "").strip() if row.get("email") else None,
-                        phone=row.get("phone", "").strip() if row.get("phone") else None,
                     )
                     db.session.add(party)
                     imported += 1
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
 
-        if imported > 0:
+        if imported > 0 or updated > 0:
             db.session.commit()
-            flash(f"Successfully imported {imported} parties", "success")
+            if imported > 0:
+                flash(f"Successfully imported {imported} new parties", "success")
+            if updated > 0:
+                flash(f"Successfully updated {updated} existing parties", "success")
 
         if errors:
             for error in errors[:10]:

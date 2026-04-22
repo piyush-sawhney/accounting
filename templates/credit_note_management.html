@@ -57,63 +57,56 @@
             </div>
         </div>
         
-        <div class="row mb-4 g-3 align-items-center">
-            <div class="col-auto">
-                <button type="button" class="btn btn-sm btn-outline-primary" disabled id="lockBtn" data-bs-toggle="modal" data-bs-target="#lockCreditNotesModal">
-                    <i class="bi bi-lock-fill me-1"></i> Lock Selected
-                </button>
-            </div>
-            <div class="col-auto">
-                <button type="button" class="btn btn-sm btn-outline-warning" disabled id="unlockBtn" data-bs-toggle="modal" data-bs-target="#unlockCreditNotesModal">
-                    <i class="bi bi-unlock-fill me-1"></i> Unlock Selected
-                </button>
-            </div>
-            <div class="col-auto">
-                <button type="button" class="btn btn-sm btn-outline-danger" id="deleteBtn" disabled data-bs-toggle="modal" data-bs-target="#deleteCreditNotesModal">
-                    <i class="bi bi-trash-fill me-1"></i> Delete Selected
-                </button>
-            </div>
-            <div class="col-auto">
-                {% if pending_count > 0 %}
-                <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#generateNumbersModal">
-                    <i class="bi bi-magic me-1"></i> Auto Generate Credit Note Numbers
-                    <span class="badge bg-light text-dark ms-1">{{ pending_count }}</span>
-                </button>
-                {% else %}
-                <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
-                    <i class="bi bi-magic me-1"></i> Auto Generate Credit Note Numbers
-                </button>
-                {% endif %}
-            </div>
-            <div class="col-auto">
-                <button type="button" class="btn btn-sm btn-outline-primary" disabled id="exportPdfBtn" data-bs-toggle="modal" data-bs-target="#exportPdfModal">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
-                </button>
-            </div>
-            <div class="col-auto">
-                <button type="button" class="btn btn-sm btn-success" disabled id="exportExcelBtn" data-bs-toggle="modal" data-bs-target="#exportExcelModal">
-                    <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-                </button>
-            </div>
-            <div class="col-auto ms-auto d-flex align-items-center gap-3">
-                <span id="selectedCount" class="badge bg-dark">0 Selected</span>
-            </div>
-        </div>
-        
-        <div class="card">
-            <div class="card-header bg-white border-bottom-0 pt-4 pb-2">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0">Credit Notes</h5>
-                    <div class="d-flex gap-2">
-                        <a href="{{ url_for('credit_notes.import_credit_notes') }}" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-upload me-1"></i> Import CSV
-                        </a>
-                        <a href="{{ url_for('credit_notes.create_credit_note') }}" class="btn btn-primary btn-sm">
-                            <i class="bi bi-plus-circle me-1"></i> New Credit Note
-                        </a>
-                    </div>
-                </div>
-            </div>
+<div class="card">
+             <div class="card-header bg-white border-bottom-0 pt-4 pb-2">
+                 <div class="d-flex justify-content-between align-items-center">
+                     <h5 class="mb-0">Credit Notes</h5>
+                     <div class="d-flex gap-2">
+                         <div class="d-flex gap-2">
+                             <a href="{{ url_for('credit_notes.create_credit_note') }}" class="btn btn-primary btn-sm">
+                                 <i class="bi bi-plus-circle me-1"></i> New Credit Note
+                             </a>
+                             <a href="{{ url_for('credit_notes.import_credit_notes') }}" class="btn btn-outline-primary btn-sm">
+                                 <i class="bi bi-upload me-1"></i> Import CSV
+                             </a>
+                         </div>
+                         <div class="d-flex gap-2">
+                             <button type="button" class="btn btn-sm btn-outline-primary" disabled id="lockBtn" data-bs-toggle="modal" data-bs-target="#lockCreditNotesModal">
+                                 <i class="bi bi-lock-fill me-1"></i> Lock Selected
+                             </button>
+                             <button type="button" class="btn btn-sm btn-outline-warning" disabled id="unlockBtn" data-bs-toggle="modal" data-bs-target="#unlockCreditNotesModal">
+                                 <i class="bi bi-unlock-fill me-1"></i> Unlock Selected
+                             </button>
+                             <button type="button" class="btn btn-sm btn-outline-danger" id="deleteBtn" disabled data-bs-toggle="modal" data-bs-target="#deleteCreditNotesModal">
+                                 <i class="bi bi-trash-fill me-1"></i> Delete Selected
+                             </button>
+                         </div>
+                         <div class="d-flex gap-2">
+                             {% if pending_count > 0 %}
+                             <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#generateNumbersModal">
+                                 <i class="bi bi-magic me-1"></i> Auto Generate Credit Note Numbers
+                                 <span class="badge bg-light text-dark ms-1">{{ pending_count }}</span>
+                             </button>
+                             {% else %}
+                             <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                                 <i class="bi bi-magic me-1"></i> Auto Generate Credit Note Numbers
+                             </button>
+                             {% endif %}
+                         </div>
+                         <div class="d-flex gap-2">
+                             <button type="button" class="btn btn-sm btn-outline-primary" disabled id="exportPdfBtn" data-bs-toggle="modal" data-bs-target="#exportPdfModal">
+                                 <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+                             </button>
+                             <button type="button" class="btn btn-sm btn-success" disabled id="exportExcelBtn" data-bs-toggle="modal" data-bs-target="#exportExcelModal">
+                                 <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+                             </button>
+                         </div>
+                         <div class="col-auto ms-auto d-flex align-items-center gap-3">
+                             <span id="selectedCount" class="badge bg-dark">0 Selected</span>
+                         </div>
+                     </div>
+                 </div>
+             </div>
             <div class="card-body p-0">
                 <table class="table table-hover align-middle mb-0" id="creditNotesTable">
                     <thead>

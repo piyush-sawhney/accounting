@@ -83,7 +83,7 @@ letter-spacing: var(--md-sys-spacing-0-5);
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4" style="margin-top: var(--md-sys-spacing-12);">
+<div class="container-fluid px-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h4 fw-semibold mb-1">{{ greeting }}</h1>
@@ -103,7 +103,7 @@ letter-spacing: var(--md-sys-spacing-0-5);
                     <div class="d-flex justify-content-between align-items-start mb-4">
                         <div>
                             <div class="text-muted small fw-medium text-uppercase" style="letter-spacing: var(--md-sys-spacing-0-5);">This Month Revenue</div>
-                            <div class="h2 fw-bold mb-0">₹{{ this_month_revenue | currency }}</div>
+                            <div class="h2 fw-bold mb-0">&#8377;{{ this_month_revenue | currency }}</div>
                             {% if revenue_change != 0 %}
                             <div class="{% if revenue_change > 0 %}text-success{% else %}text-danger{% endif %} small fw-medium mt-1">
                                 <i class="bi {% if revenue_change > 0 %}bi-arrow-up-circle-fill{% else %}bi-arrow-down-circle-fill{% endif %} me-1"></i>
@@ -137,16 +137,16 @@ letter-spacing: var(--md-sys-spacing-0-5);
                                 labels: {{ chart_labels|tojson }},
                                 datasets: [{
                                     data: chartData,
-borderColor: 'var(--md-sys-color-primary)',
-                                     backgroundColor: 'rgba(var(--md-sys-color-primary-rgb), 0.1)',
-                                    borderWidth: 2,
-                                    fill: true,
-                                    tension: 0.4,
-                                    pointRadius: 0,
-                                    pointHoverRadius: 6,
-pointBackgroundColor: 'var(--md-sys-color-primary)',
-                                     pointBorderColor: '#fff',
-                                    pointBorderWidth: 2
+borderColor: '#4f46e5',
+                                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                       borderWidth: 2,
+                                       fill: true,
+                                       tension: 0.4,
+                                       pointRadius: 0,
+                                       pointHoverRadius: 6,
+                                       pointBackgroundColor: '#4f46e5',
+                                        pointBorderColor: '#ffffff',
+                                       pointBorderWidth: 2
                                 }]
                             },
                             options: {
@@ -154,19 +154,19 @@ pointBackgroundColor: 'var(--md-sys-color-primary)',
                                 maintainAspectRatio: false,
                                 plugins: {
                                     legend: { display: false },
-                                    tooltip: {
-                                        backgroundColor: 'var(--md-sys-color-on-surface)',
-                                        titleColor: 'var(--md-sys-color-surface)',
-                                        bodyColor: 'var(--md-sys-color-surface)',
-                                        padding: 10,
-                                        cornerRadius: 8,
-                                        displayColors: false,
-                                        callbacks: {
-                                            label: function(ctx) {
-                                                return '₹' + ctx.raw.toLocaleString('en-IN');
-                                            }
-                                        }
-                                    }
+tooltip: {
+                                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                         titleColor: '#ffffff',
+                                         bodyColor: '#ffffff',
+                                         padding: 10,
+                                         cornerRadius: 8,
+                                         displayColors: false,
+                                         callbacks: {
+                                             label: function(ctx) {
+                                                 return '&#8377;' + ctx.raw.toLocaleString('en-IN');
+                                             }
+                                         }
+                                     }
                                 },
                                 scales: {
                                     x: { display: false },
@@ -193,7 +193,7 @@ pointBackgroundColor: 'var(--md-sys-color-primary)',
                     <div class="text-muted small fw-medium text-uppercase mb-3" style="letter-spacing: var(--md-sys-spacing-0-5);">Pending Invoices</div>
                     <div class="display-3 fw-bold mb-2" style="color: var(--md-sys-color-primary);">{{ pending_count }}</div>
                     {% if pending_count > 0 %}
-                    <div class="text-muted small">₹{{ "%.0f"|format(pending_amount) }} awaiting</div>
+                    <div class="text-muted small">&#8377;{{ "%.0f"|format(pending_amount) }} awaiting</div>
                     {% else %}
                     <div class="text-success fw-medium"><i class="bi bi-check-circle-fill me-1"></i>All numbered</div>
                     {% endif %}
