@@ -518,6 +518,12 @@ def import_credit_notes():
     imported = 0
     errors = []
     
+    def clean_numeric(value_str):
+        if not value_str:
+            return None
+        cleaned = ''.join(c for c in value_str if c.isdigit() or c in '.-')
+        return cleaned if cleaned else None
+    
     for row_num, row in enumerate(csv_reader, start=2):
         try:
             party_gstin = (row.get("party_gstin") or "").strip().upper()
@@ -557,12 +563,21 @@ def import_credit_notes():
                 errors.append(f"Row {row_num}: Party with GSTIN {party_gstin} not found")
                 continue
             
-            credit_note_date = datetime.strptime(credit_note_date_str, "%Y-%m-%d").date()
+            credit_note_date = None
+            for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%Y"):
+                try:
+                    credit_note_date = datetime.strptime(credit_note_date_str, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            if credit_note_date is None:
+                errors.append(f"Row {row_num}: Invalid date format '{credit_note_date_str}'")
+                continue
             
-            taxable_value = Decimal(taxable_value_str) if taxable_value_str else Decimal("0")
-            igst_rate = float(igst_rate_str) if igst_rate_str else 0.0
-            cgst_rate = float(cgst_rate_str) if cgst_rate_str else 0.0
-            sgst_rate = float(sgst_rate_str) if sgst_rate_str else 0.0
+            taxable_value = Decimal(clean_numeric(taxable_value_str)) if clean_numeric(taxable_value_str) else Decimal("0")
+            igst_rate = float(clean_numeric(igst_rate_str)) if clean_numeric(igst_rate_str) else 0.0
+            cgst_rate = float(clean_numeric(cgst_rate_str)) if clean_numeric(cgst_rate_str) else 0.0
+            sgst_rate = float(clean_numeric(sgst_rate_str)) if clean_numeric(sgst_rate_str) else 0.0
             
             tax_type = (row.get("tax_type") or "INTER").strip().upper()
             

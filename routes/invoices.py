@@ -638,8 +638,15 @@ def import_invoices():
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         csv_reader = csv.DictReader(stream)
 
-        imported = 0
+        created = 0
+        updated = 0
         errors = []
+        
+        def clean_numeric(value_str):
+            if not value_str:
+                return None
+            cleaned = ''.join(c for c in value_str if c.isdigit() or c in '.-')
+            return cleaned if cleaned else None
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
@@ -680,13 +687,22 @@ def import_invoices():
                 party_state = party.state
                 party_state_code = party.state_code
                 
-                invoice_date = datetime.strptime(invoice_date_str, "%Y-%m-%d").date()
+                invoice_date = None
+                for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%Y"):
+                    try:
+                        invoice_date = datetime.strptime(invoice_date_str, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                if invoice_date is None:
+                    errors.append(f"Row {row_num}: Invalid date format '{invoice_date_str}'")
+                    continue
                 
-                taxable_value = Decimal(taxable_value_str) if taxable_value_str else Decimal("0")
-                igst_rate = float(igst_rate_str) if igst_rate_str else 0.0
-                cgst_rate = float(cgst_rate_str) if cgst_rate_str else 0.0
-                sgst_rate = float(sgst_rate_str) if sgst_rate_str else 0.0
-                reverse_charge = Decimal(reverse_charge_str) if reverse_charge_str else Decimal("0")
+                taxable_value = Decimal(clean_numeric(taxable_value_str)) if clean_numeric(taxable_value_str) else Decimal("0")
+                igst_rate = float(clean_numeric(igst_rate_str)) if clean_numeric(igst_rate_str) else 0.0
+                cgst_rate = float(clean_numeric(cgst_rate_str)) if clean_numeric(cgst_rate_str) else 0.0
+                sgst_rate = float(clean_numeric(sgst_rate_str)) if clean_numeric(sgst_rate_str) else 0.0
+                reverse_charge = Decimal(clean_numeric(reverse_charge_str)) if clean_numeric(reverse_charge_str) else Decimal("0")
                 is_rcm = is_rcm_str in ("1", "true", "True", "yes", "Yes")
                 
                 tax_type = (row.get("tax_type") or "INTER").strip().upper()
@@ -704,32 +720,63 @@ def import_invoices():
                 
                 company = get_current_company()
                 
-                invoice = Invoice(
-                    invoice_no=final_invoice_no,
-                    invoice_date=invoice_date,
-                    party_id=party.id,
-                    reference_serial_no=reference_serial_no if reference_serial_no else None,
-                    tax_type=tax_type,
-                    place_of_supply=row.get("place_of_supply"),
-                    sac_hsn_code=row.get("sac_hsn_code"),
-                    reverse_charge=reverse_charge,
-                    is_rcm=is_rcm,
-                    distributor_code=distributor_code if distributor_code else None,
-                    locked=False,
-                    party_name=party_name,
-                    party_address=party_address,
-                    party_gstin=party_gstin_val,
-                    party_pan=party_pan,
-                    party_state=party_state,
-                    party_state_code=party_state_code,
-                    company_name=company.name if company else "Not Set",
-                    company_address=company.address if company else "",
-                    company_gstin=company.gstin if company else "",
-                    company_pan=company.pan if company else ""
-                )
+                existing_invoice = None
+                if final_invoice_no:
+                    existing_invoice = Invoice.query.filter_by(invoice_no=final_invoice_no).first()
                 
-                db.session.add(invoice)
-                db.session.flush()
+                if existing_invoice:
+                    if existing_invoice.locked:
+                        errors.append(f"Row {row_num}: Invoice {final_invoice_no} is locked, skipping update")
+                        continue
+                    
+                    existing_invoice.invoice_date = invoice_date
+                    existing_invoice.party_id = party.id
+                    existing_invoice.reference_serial_no = reference_serial_no if reference_serial_no else None
+                    existing_invoice.tax_type = tax_type
+                    existing_invoice.place_of_supply = row.get("place_of_supply")
+                    existing_invoice.sac_hsn_code = row.get("sac_hsn_code")
+                    existing_invoice.reverse_charge = reverse_charge
+                    existing_invoice.is_rcm = is_rcm
+                    existing_invoice.distributor_code = distributor_code if distributor_code else None
+                    existing_invoice.party_name = party_name
+                    existing_invoice.party_address = party_address
+                    existing_invoice.party_gstin = party_gstin_val
+                    existing_invoice.party_pan = party_pan
+                    existing_invoice.party_state = party_state
+                    existing_invoice.party_state_code = party_state_code
+                    existing_invoice.company_name = company.name if company else "Not Set"
+                    existing_invoice.company_address = company.address if company else ""
+                    existing_invoice.company_gstin = company.gstin if company else ""
+                    existing_invoice.company_pan = company.pan if company else ""
+                    
+                    InvoiceItem.query.filter_by(invoice_id=existing_invoice.id).delete()
+                    invoice = existing_invoice
+                else:
+                    invoice = Invoice(
+                        invoice_no=final_invoice_no,
+                        invoice_date=invoice_date,
+                        party_id=party.id,
+                        reference_serial_no=reference_serial_no if reference_serial_no else None,
+                        tax_type=tax_type,
+                        place_of_supply=row.get("place_of_supply"),
+                        sac_hsn_code=row.get("sac_hsn_code"),
+                        reverse_charge=reverse_charge,
+                        is_rcm=is_rcm,
+                        distributor_code=distributor_code if distributor_code else None,
+                        locked=False,
+                        party_name=party_name,
+                        party_address=party_address,
+                        party_gstin=party_gstin_val,
+                        party_pan=party_pan,
+                        party_state=party_state,
+                        party_state_code=party_state_code,
+                        company_name=company.name if company else "Not Set",
+                        company_address=company.address if company else "",
+                        company_gstin=company.gstin if company else "",
+                        company_pan=company.pan if company else ""
+                    )
+                    db.session.add(invoice)
+                    db.session.flush()
                 
                 item = InvoiceItem(
                     invoice_id=invoice.id,
@@ -747,13 +794,21 @@ def import_invoices():
                 
                 invoice.total_in_words = number_to_words(float(taxable_value + igst_amt + cgst_amt + sgst_amt))
                 
-                imported += 1
+                if existing_invoice:
+                    updated += 1
+                else:
+                    created += 1
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
 
-        if imported > 0:
+        if created > 0 or updated > 0:
             db.session.commit()
-            flash(f"Successfully imported {imported} invoices", "success")
+            if created > 0 and updated > 0:
+                flash(f"Created {created} invoice(s), updated {updated} invoice(s)", "success")
+            elif created > 0:
+                flash(f"Successfully imported {created} invoice(s)", "success")
+            else:
+                flash(f"Successfully updated {updated} invoice(s)", "success")
 
         if errors:
             for error in errors[:10]:
