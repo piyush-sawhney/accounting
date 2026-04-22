@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Flask, redirect, url_for, session, flash, request
 from flask_sqlalchemy import SQLAlchemy
 from models import db, Company, User
-from constants import RECOVERY_CODE_COUNT, INVOICE_NUMBER_PADDING, MAX_RETRY_ATTEMPTS
+from constants import RECOVERY_CODE_COUNT
 
 # Import Blueprints
 from routes.auth import auth_bp
@@ -19,7 +19,7 @@ from routes.credit_notes import credit_notes_bp
 from utils import (
     parse_date, parse_number, parse_percentage, parse_tax_type, 
     validate_tax_rates, extract_pan_from_gstin, number_to_words,
-    get_fiscal_year, get_fy_short, get_current_company, get_greeting,
+    get_fiscal_year, get_current_company, get_greeting,
     login_required, admin_required, generate_invoice_numbers
 )
 
