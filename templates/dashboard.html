@@ -321,7 +321,7 @@ callbacks: {
                                 <tr>
                                     <th class="text-muted small">PARTY NAME</th>
                                     <th class="text-muted small text-end">{{ this_month_last_year_label }}</th>
-                                    <th class="text-muted small text-end">{{ current_month_label }}</th>
+                                    <th class="text-muted small text-end fw-bold">{{ current_month_label }}</th>
                                     <th class="text-muted small text-end">{{ previous_month_label }}</th>
                                     <th class="text-muted small text-end">{{ two_months_ago_label }}</th>
                                     <th class="text-muted small text-end">{{ three_months_ago_label }}</th>
@@ -333,7 +333,7 @@ callbacks: {
                                 <tr>
                                     <td class="fw-medium">{{ party.name }}</td>
                                     <td class="text-end">₹{{ "%.0f"|format(party.this_month_last_year) }}</td>
-                                    <td class="text-end">₹{{ "%.0f"|format(party.this_month) }}</td>
+                                    <td class="text-end fw-bold">₹{{ "%.0f"|format(party.this_month) }}</td>
                                     <td class="text-end text-muted">₹{{ "%.0f"|format(party.last_month) }}</td>
                                     <td class="text-end text-muted">₹{{ "%.0f"|format(party.two_months_ago) }}</td>
                                     <td class="text-end text-muted">₹{{ "%.0f"|format(party.three_months_ago) }}</td>
