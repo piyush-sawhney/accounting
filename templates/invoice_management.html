@@ -332,7 +332,7 @@
                 </ul>
             </div>
             <div class="modal-footer border-0">
-                <form action="{{ url_for('invoices.batch_export') }}" method="POST" id="exportPdfForm" target="_blank">
+                <form action="{{ url_for('invoices.batch_export') }}" method="POST" id="exportPdfForm">
                     <input type="hidden" name="invoice_ids" id="export_pdf_ids">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">
@@ -362,13 +362,15 @@
                 <form action="{{ url_for('invoices.batch_export_excel') }}" method="POST" id="exportExcelForm" target="_blank">
                     <input type="hidden" name="invoice_ids" id="export_excel_ids">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success">
+                    <button type="button" class="btn btn-success" id="exportExcelSubmit">
                         <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
                     </button>
                 </form>
             </div>
         </div>
-    {% endblock %}
+    </div>
+</div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
@@ -489,6 +491,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('deleteInvoicesModal').addEventListener('show.bs.modal', updateInvoiceIds);
     document.getElementById('exportPdfModal').addEventListener('show.bs.modal', updateInvoiceIds);
     document.getElementById('exportExcelModal').addEventListener('show.bs.modal', updateInvoiceIds);
+    
+    document.getElementById('exportExcelSubmit').addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('exportExcelModal'));
+        if (modal) modal.hide();
+        setTimeout(() => document.getElementById('exportExcelForm').submit(), 150);
+    });
     
     if (selectAll) {
         selectAll.addEventListener('change', function() {

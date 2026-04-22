@@ -362,14 +362,41 @@ def generate_credit_note_numbers_route():
 @login_required
 def batch_lock_credit_notes():
     ids_raw = request.form.get("credit_note_ids", "")
-    if not ids_raw:
+    credit_note_ids = [int(x) for x in ids_raw.split(",") if x.strip()] if ids_raw else []
+    
+    if not credit_note_ids:
         flash("No credit notes selected", "warning")
         return redirect(url_for("credit_notes.manage_credit_notes"))
     
-    ids = [int(x) for x in ids_raw.split(",") if x.strip()]
-    CreditNote.query.filter(CreditNote.id.in_(ids)).update({CreditNote.locked: True}, synchronize_session=False)
+    newly_locked = 0
+    skipped_missing_no = 0
+    already_locked = 0
+    
+    for credit_note_id in credit_note_ids:
+        cn = db.session.get(CreditNote, credit_note_id)
+        if cn:
+            if cn.credit_note_no:
+                if cn.locked:
+                    already_locked += 1
+                else:
+                    cn.locked = True
+                    newly_locked += 1
+            else:
+                skipped_missing_no += 1
+    
     db.session.commit()
-    flash(f"Locked {len(ids)} credit notes", "success")
+    
+    if newly_locked > 0 and already_locked > 0:
+        flash(f"Locked {newly_locked} credit note(s). {already_locked} credit note(s) were already locked.", "success")
+    elif newly_locked > 0:
+        flash(f"Locked {newly_locked} credit note(s).", "success")
+    elif already_locked > 0:
+        flash(f"{already_locked} credit note(s) are already locked. No changes were made.", "info")
+    elif skipped_missing_no > 0:
+        flash(f"No credit notes could be locked. {skipped_missing_no} credit note(s) are missing credit note numbers.", "warning")
+    else:
+        flash("No credit notes could be locked.", "warning")
+    
     return redirect(url_for("credit_notes.manage_credit_notes"))
 
 
@@ -377,14 +404,35 @@ def batch_lock_credit_notes():
 @login_required
 def batch_unlock_credit_notes():
     ids_raw = request.form.get("credit_note_ids", "")
-    if not ids_raw:
+    credit_note_ids = [int(x) for x in ids_raw.split(",") if x.strip()] if ids_raw else []
+    
+    if not credit_note_ids:
         flash("No credit notes selected", "warning")
         return redirect(url_for("credit_notes.manage_credit_notes"))
     
-    ids = [int(x) for x in ids_raw.split(",") if x.strip()]
-    CreditNote.query.filter(CreditNote.id.in_(ids)).update({CreditNote.locked: False}, synchronize_session=False)
+    newly_unlocked = 0
+    already_unlocked = 0
+    
+    for credit_note_id in credit_note_ids:
+        cn = db.session.get(CreditNote, credit_note_id)
+        if cn:
+            if cn.locked:
+                cn.locked = False
+                newly_unlocked += 1
+            else:
+                already_unlocked += 1
+    
     db.session.commit()
-    flash(f"Unlocked {len(ids)} credit notes", "success")
+    
+    if newly_unlocked > 0 and already_unlocked > 0:
+        flash(f"Unlocked {newly_unlocked} credit note(s). {already_unlocked} credit note(s) were already unlocked.", "success")
+    elif newly_unlocked > 0:
+        flash(f"Unlocked {newly_unlocked} credit note(s).", "success")
+    elif already_unlocked > 0:
+        flash(f"{already_unlocked} credit note(s) are already unlocked. No changes were made.", "info")
+    else:
+        flash("No credit notes could be unlocked.", "warning")
+    
     return redirect(url_for("credit_notes.manage_credit_notes"))
 
 
@@ -426,6 +474,7 @@ def batch_export_credit_notes():
         return redirect(url_for("credit_notes.manage_credit_notes"))
     
     from utils import get_current_company
+    from flask import current_app
     company = get_current_company()
     settings = {
         "company_name": company.name if company else "Not Set",
@@ -434,8 +483,10 @@ def batch_export_credit_notes():
         "pan": company.pan if company else "",
     }
     
-    os.makedirs("temp_exports", exist_ok=True)
-    zip_path = "temp_exports/credit_notes_batch.zip"
+    zip_path = os.path.join(
+        current_app.config["EXPORT_FOLDER"],
+        f"credit_notes_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+    )
     
     def sanitize(name):
         name = str(name).strip()
@@ -450,7 +501,8 @@ def batch_export_credit_notes():
             safe_name = f"CN_{sanitize(cn.credit_note_no)}.pdf"
             zipf.writestr(safe_name, pdf)
     
-    return send_file(zip_path, as_attachment=False, download_name=f"credit_notes_batch.zip")
+    flash(f"File: {os.path.basename(zip_path)} saved in exports folder", "success")
+    return redirect(url_for("credit_notes.manage_credit_notes"))
 
 
 @credit_notes_bp.route("/credit-notes/batch-export-excel", methods=["POST"])

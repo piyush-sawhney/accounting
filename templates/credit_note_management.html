@@ -98,10 +98,22 @@
                         <tr>
                             <th class="text-center" style="width: 50px;"><input type="checkbox" id="selectAllCNHeader"></th>
                             <th>
-<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='credit_note_no', sort_dir='asc' if sort_by != 'credit_note_no' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
-<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='date', sort_dir='asc' if sort_by != 'date' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
-<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='invoice', sort_dir='asc' if sort_by != 'invoice' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
-<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='party', sort_dir='asc' if sort_by != 'party' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='credit_note_no', sort_dir='asc' if sort_by != 'credit_note_no' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+                                    CN No. {% if sort_by == 'credit_note_no' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='date', sort_dir='asc' if sort_by != 'date' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+                                    Date {% if sort_by == 'date' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='invoice', sort_dir='asc' if sort_by != 'invoice' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+                                    Invoice {% if sort_by == 'invoice' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='party', sort_dir='asc' if sort_by != 'party' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
                                     Party Name {% if sort_by == 'party' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
@@ -229,7 +241,7 @@
                 <form action="{{ url_for('credit_notes.batch_lock_credit_notes') }}" method="POST" id="lockForm">
                     <input type="hidden" name="credit_note_ids" id="lock_ids">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="button" class="btn btn-primary" id="lockSubmit">
                         <i class="bi bi-lock-fill me-1"></i> Lock
                     </button>
                 </form>
@@ -259,7 +271,7 @@
                 <form action="{{ url_for('credit_notes.batch_unlock_credit_notes') }}" method="POST" id="unlockForm">
                     <input type="hidden" name="credit_note_ids" id="unlock_ids">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-warning">
+                    <button type="button" class="btn btn-warning" id="unlockSubmit">
                         <i class="bi bi-unlock-fill me-1"></i> Unlock
                     </button>
                 </form>
@@ -289,7 +301,7 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form action="{{ url_for('credit_notes.batch_delete_credit_notes') }}" method="POST" id="deleteForm">
                     <input type="hidden" name="credit_note_ids" id="delete_ids">
-                    <button type="submit" class="btn btn-danger">
+                    <button type="button" class="btn btn-danger" id="deleteSubmit">
                         <i class="bi bi-trash me-1"></i> Delete
                     </button>
                 </form>
@@ -344,9 +356,9 @@
             </div>
             <div class="modal-footer border-0">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form action="{{ url_for('credit_notes.batch_export_excel_credit_notes') }}" method="POST" id="exportExcelForm">
+                <form action="{{ url_for('credit_notes.batch_export_excel_credit_notes') }}" method="POST" id="exportExcelForm" target="_blank">
                     <input type="hidden" name="credit_note_ids" id="export_cn_excel_ids">
-                    <button type="submit" class="btn btn-success">
+                    <button type="button" class="btn btn-success" id="exportExcelSubmit">
                         <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
                     </button>
                 </form>
@@ -367,16 +379,25 @@ function updateBatchIds() {
     document.getElementById('export_cn_excel_ids').value = selectedIds.join(',');
     document.getElementById('selectedCount').textContent = selectedIds.length + ' Selected';
     
-    // Count locked vs unlocked and check credit_note_no
+    // Count for lock/unlock/export decisions
     let lockedCount = 0;
+    let canLockCount = 0;
     let canExportCount = 0;
     selectedIds.forEach(id => {
         const row = document.querySelector(`input[value="${id}"]`)?.closest('tr');
         const isLocked = row?.querySelector('.bi-lock-fill');
         const hasCNNo = row?.querySelector('.badge.bg-light');
-        if (isLocked && hasCNNo) {
+        
+        if (isLocked) {
             lockedCount++;
+        }
+        
+        if (hasCNNo) {
             canExportCount++;
+            // Can lock if has CN No but is NOT locked
+            if (!isLocked) {
+                canLockCount++;
+            }
         }
     });
     
@@ -502,6 +523,30 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('deleteCreditNotesModal')?.addEventListener('show.bs.modal', updateBatchIds);
     document.getElementById('exportPdfModal')?.addEventListener('show.bs.modal', updateBatchIds);
     document.getElementById('exportExcelModal')?.addEventListener('show.bs.modal', updateBatchIds);
+    
+    document.getElementById('exportExcelSubmit')?.addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('exportExcelModal'));
+        if (modal) modal.hide();
+        setTimeout(() => document.getElementById('exportExcelForm').submit(), 150);
+    });
+    
+    document.getElementById('lockSubmit')?.addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('lockCreditNotesModal'));
+        if (modal) modal.hide();
+        setTimeout(() => document.getElementById('lockForm').submit(), 150);
+    });
+    
+    document.getElementById('unlockSubmit')?.addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('unlockCreditNotesModal'));
+        if (modal) modal.hide();
+        setTimeout(() => document.getElementById('unlockForm').submit(), 150);
+    });
+    
+    document.getElementById('deleteSubmit')?.addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteCreditNotesModal'));
+        if (modal) modal.hide();
+        setTimeout(() => document.getElementById('deleteForm').submit(), 150);
+    });
 });
 </script>
 {% endblock %}

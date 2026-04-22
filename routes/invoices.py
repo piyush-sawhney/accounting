@@ -443,7 +443,8 @@ def batch_export():
         flash("No locked invoices with invoice numbers to export", "warning")
         return redirect(url_for("invoices.manage_invoices"))
 
-    return send_file(zip_path, as_attachment=False, download_name=f"invoices_batch.zip")
+    flash(f"File: {os.path.basename(zip_path)} saved in exports folder", "success")
+    return redirect(url_for("invoices.manage_invoices"))
 
 
 @invoices_bp.route("/invoices/batch-lock", methods=["POST"])
