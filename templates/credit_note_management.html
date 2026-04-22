@@ -75,11 +75,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label text-muted small">Search (Credit Note No., Invoice No., Party)</label>
-                        <input type="text" name="search" class="form-control" placeholder="CN No., Invoice No., or Party Name" value="{{ search_query or '' }}">
-                    </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label class="form-label text-muted small">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All</option>
@@ -87,7 +83,7 @@
                             <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed (Has CN No.)</option>
                         </select>
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
+                    <div class="col-md-3 d-flex align-items-end">
                         <button type="submit" class="btn btn-outline-primary me-2 flex-grow-1">Filter</button>
                         <a href="{{ url_for('credit_notes.manage_credit_notes') }}" class="btn btn-outline-secondary flex-grow-1">Reset</a>
                     </div>
@@ -102,22 +98,10 @@
                         <tr>
                             <th class="text-center" style="width: 50px;"><input type="checkbox" id="selectAllCNHeader"></th>
                             <th>
-                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='credit_note_no', sort_dir='asc' if sort_by != 'credit_note_no' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
-                                    Credit Note No. {% if sort_by == 'credit_note_no' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                                </a>
-                            </th>
-                            <th>
-                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='date', sort_dir='asc' if sort_by != 'date' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
-                                    Date {% if sort_by == 'date' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                                </a>
-                            </th>
-                            <th>
-                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='invoice', sort_dir='asc' if sort_by != 'invoice' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
-                                    Invoice Ref. {% if sort_by == 'invoice' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
-                                </a>
-                            </th>
-                            <th>
-                                <a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='party', sort_dir='asc' if sort_by != 'party' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, search=search_query, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='credit_note_no', sort_dir='asc' if sort_by != 'credit_note_no' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='date', sort_dir='asc' if sort_by != 'date' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='invoice', sort_dir='asc' if sort_by != 'invoice' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
+<a href="{{ url_for('credit_notes.manage_credit_notes', sort_by='party', sort_dir='asc' if sort_by != 'party' or sort_dir == 'desc' else 'desc', year=selected_year, month=selected_month, invoice=invoice_filter) }}" class="text-decoration-none text-muted">
                                     Party Name {% if sort_by == 'party' %}{{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}
                                 </a>
                             </th>
