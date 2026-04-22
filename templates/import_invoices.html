@@ -15,23 +15,40 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        
+
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="h3 text-dark"><i class="bi bi-upload me-2"></i>Import Invoices</h2>
             <a href="{{ url_for('invoices.manage_invoices') }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left me-1"></i> Back to Invoices
             </a>
         </div>
-        
+
         <div class="alert alert-info border-0">
-            <i class="bi bi-info-circle me-2"></i> 
+            <i class="bi bi-info-circle me-2"></i>
             <strong>Note:</strong> Invoice numbers will NOT be imported. They will be auto-generated later using the "Generate Invoice Numbers" button on the Dashboard.
         </div>
-        
-<div class="card mb-4">
-             <div class="card-header bg-white pt-4">
-                 <h5 class="mb-0 text-primary">CSV Requirements</h5>
-             </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-white pt-4 pb-2">
+                <h5 class="mb-0 text-primary">Upload CSV File</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Select CSV File</label>
+                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload me-1"></i> Import Invoices
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-white pt-4 pb-2">
+                <h5 class="mb-0 text-primary">CSV Requirements</h5>
+            </div>
             <div class="card-body">
                 <p class="text-muted small">Your CSV file should have the following columns:</p>
                 <div class="table-responsive">
@@ -57,32 +74,18 @@
                             <tr><td><code>cgst_rate</code></td><td><span class="badge bg-secondary">No</span></td><td>CGST % (for intra-state)</td><td>9</td></tr>
                             <tr><td><code>sgst_rate</code></td><td><span class="badge bg-secondary">No</span></td><td>SGST % (for intra-state)</td><td>9</td></tr>
                             <tr><td><code>place_of_supply</code></td><td><span class="badge bg-secondary">No</span></td><td>Place of supply</td><td>Mumbai</td></tr>
-                                  <tr><td><code>reverse_charge</code></td><td><span class="badge bg-secondary">No</span></td><td>Reverse charge amount</td><td>0</td></tr>
-                                  <tr><td><code>is_rcm</code></td><td><span class="badge bg-secondary">No</span></td><td>RCM Flag (1 for yes, 0 for no)</td><td>0</td></tr>
-                                  <tr><td><code>distributor_code</code></td><td><span class="badge bg-secondary">No</span></td><td>Distributor Code for this invoice</td><td>CODE123</td></tr>
-                              </tbody>
+                            <tr><td><code>reverse_charge</code></td><td><span class="badge bg-secondary">No</span></td><td>Reverse charge amount</td><td>0</td></tr>
+                            <tr><td><code>is_rcm</code></td><td><span class="badge bg-secondary">No</span></td><td>RCM Flag (1 for yes, 0 for no)</td><td>0</td></tr>
+                            <tr><td><code>distributor_code</code></td><td><span class="badge bg-secondary">No</span></td><td>Distributor Code for this invoice</td><td>CODE123</td></tr>
+                        </tbody>
                     </table>
                 </div>
-                
+
                 <div class="mt-4">
                     <h6 class="text-primary">Sample CSV Structure</h6>
                     <pre class="bg-light p-3 rounded small text-muted">invoice_no,reference_serial_no,invoice_date,party_gstin,description,sac_hsn_code,taxable_value,tax_type,igst_rate,place_of_supply,reverse_charge,is_rcm,distributor_code
 26-27/001,128260301039407,05-04-2026,27AACTA5925A1Z5,Distribution Commission,9971,25484.87,INTER,18,Mumbai,0,0,CODE123</pre>
                 </div>
-                
-                <hr class="my-4">
-                
-                <form method="POST" enctype="multipart/form-data" class="row g-3 align-items-end">
-                    <div class="col-md-8">
-                        <label class="form-label text-muted small">Select CSV File</label>
-                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
-                    </div>
-                    <div class="col-md-4">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-upload me-1"></i> Import Invoices
-                        </button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>
