@@ -3,7 +3,7 @@
 {% block title %}Invoice Management - Invoice Management Software{% endblock %}
 
 {% block content %}
-<div class="page-container">
+<div class="container-fluid py-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -14,7 +14,45 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h3"><i class="bi bi-receipt me-2"></i>Invoices</h2>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('invoices.create_invoice') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i> New Invoice
+                </a>
+                <a href="{{ url_for('invoices.import_invoices') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-upload me-1"></i> Import CSV
+                </a>
+                <button type="button" class="btn btn-outline-primary" disabled id="lockBtn" data-bs-toggle="modal" data-bs-target="#lockInvoicesModal">
+                    <i class="bi bi-lock-fill me-1"></i> Lock Selected
+                </button>
+                <button type="button" class="btn btn-outline-warning" disabled id="unlockBtn" data-bs-toggle="modal" data-bs-target="#unlockInvoicesModal">
+                    <i class="bi bi-unlock-fill me-1"></i> Unlock Selected
+                </button>
+                <button type="button" class="btn btn-outline-danger" id="deleteBtn" disabled data-bs-toggle="modal" data-bs-target="#deleteInvoicesModal">
+                    <i class="bi bi-trash-fill me-1"></i> Delete Selected
+                </button>
+                {% if pending_count > 0 %}
+                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateNumbersModal">
+                    <i class="bi bi-magic me-1"></i> Auto Generate
+                    <span class="badge bg-light text-dark ms-1">{{ pending_count }}</span>
+                </button>
+                {% else %}
+                <button type="button" class="btn btn-outline-secondary" disabled>
+                    <i class="bi bi-magic me-1"></i> Auto-Generate
+                </button>
+                {% endif %}
+                <button type="button" class="btn btn-outline-primary" disabled id="exportPdfBtn" data-bs-toggle="modal" data-bs-target="#exportPdfModal">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+                </button>
+                <button type="button" class="btn btn-success" disabled id="exportExcelBtn" data-bs-toggle="modal" data-bs-target="#exportExcelModal">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+                </button>
+                <span id="selectedCount" class="badge bg-dark align-self-center">0 Selected</span>
+            </div>
+        </div>
+
         <div class="card mb-4">
             <div class="card-body">
                 <form method="GET" action="{{ url_for('invoices.manage_invoices') }}" class="row g-3">
@@ -49,62 +87,11 @@
                         <button type="submit" class="btn btn-outline-primary me-2 flex-grow-1">Filter</button>
                         <a href="{{ url_for('invoices.manage_invoices') }}" class="btn btn-outline-secondary flex-grow-1">Reset</a>
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                    </div>
                 </form>
             </div>
         </div>
-        
-<div class="card">
-             <div class="card-header bg-white border-bottom-0 pt-4 pb-2">
-                 <div class="d-flex justify-content-between align-items-center">
-                     <h5 class="mb-0">Invoices</h5>
-                     <div class="d-flex gap-2">
-                         <div class="d-flex gap-2">
-                             <a href="{{ url_for('invoices.create_invoice') }}" class="btn btn-primary btn-sm">
-                                 <i class="bi bi-plus-circle me-1"></i> New Invoice
-                             </a>
-                             <a href="{{ url_for('invoices.import_invoices') }}" class="btn btn-outline-primary btn-sm">
-                                 <i class="bi bi-upload me-1"></i> Import CSV
-                             </a>
-                         </div>
-                         <div class="d-flex gap-2">
-                             <button type="button" class="btn btn-sm btn-outline-primary" disabled id="lockBtn" data-bs-toggle="modal" data-bs-target="#lockInvoicesModal">
-                                 <i class="bi bi-lock-fill me-1"></i> Lock Selected
-                             </button>
-                             <button type="button" class="btn btn-sm btn-outline-warning" disabled id="unlockBtn" data-bs-toggle="modal" data-bs-target="#unlockInvoicesModal">
-                                 <i class="bi bi-unlock-fill me-1"></i> Unlock Selected
-                             </button>
-                             <button type="button" class="btn btn-sm btn-outline-danger" id="deleteBtn" disabled data-bs-toggle="modal" data-bs-target="#deleteInvoicesModal">
-                                 <i class="bi bi-trash-fill me-1"></i> Delete Selected
-                             </button>
-                         </div>
-                         <div class="d-flex gap-2">
-                             {% if pending_count > 0 %}
-                             <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#generateNumbersModal">
-                                 <i class="bi bi-magic me-1"></i> Auto Generate Invoice Numbers
-                                 <span class="badge bg-light text-dark ms-1">{{ pending_count }}</span>
-                             </button>
-                             {% else %}
-                             <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
-                                 <i class="bi bi-magic me-1"></i> Auto-Generate Numbers
-                             </button>
-                             {% endif %}
-                         </div>
-                         <div class="d-flex gap-2">
-                             <button type="button" class="btn btn-sm btn-outline-primary" disabled id="exportPdfBtn" data-bs-toggle="modal" data-bs-target="#exportPdfModal">
-                                 <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
-                             </button>
-                             <button type="button" class="btn btn-sm btn-success" disabled id="exportExcelBtn" data-bs-toggle="modal" data-bs-target="#exportExcelModal">
-                                 <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-                             </button>
-                         </div>
-                         <div class="col-auto ms-auto d-flex align-items-center gap-3">
-                             <span id="selectedCount" class="badge bg-dark">0 Selected</span>
-                         </div>
-                     </div>
-                 </div>
-             </div>
+
+        <div class="card">
             <div class="card-body p-0">
                 <table class="table table-hover align-middle mb-0" id="invoicesTable">
                     <thead>
