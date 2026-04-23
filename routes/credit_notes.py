@@ -96,6 +96,7 @@ def create_credit_note():
         invoice = Invoice.query.get_or_404(invoice_id)
         
         credit_note = CreditNote(
+            credit_note_no=request.form.get("credit_note_no") or None,
             credit_note_date=datetime.strptime(request.form.get("credit_note_date"), "%Y-%m-%d").date(),
             invoice_id=invoice_id,
             reason=request.form.get("reason"),
@@ -206,6 +207,7 @@ def edit_credit_note(credit_note_id):
         
         invoice = Invoice.query.get_or_404(invoice_id)
         
+        credit_note.credit_note_no = request.form.get("credit_note_no") or None
         credit_note.credit_note_date = datetime.strptime(request.form.get("credit_note_date"), "%Y-%m-%d").date()
         credit_note.invoice_id = invoice_id
         credit_note.reason = request.form.get("reason")
