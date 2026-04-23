@@ -535,22 +535,30 @@ def batch_delete():
     
     deleted_count = 0
     locked_skipped = 0
+    has_credit_notes_skipped = 0
     
     for invoice_id in invoice_ids:
         invoice = db.session.get(Invoice, invoice_id)
         if invoice:
             if invoice.locked:
                 locked_skipped += 1
+            elif CreditNote.query.filter_by(invoice_id=invoice_id).count() > 0:
+                has_credit_notes_skipped += 1
             else:
                 db.session.delete(invoice)
                 deleted_count += 1
     
     db.session.commit()
     
+    msg_parts = []
+    if deleted_count > 0:
+        msg_parts.append(f"Deleted {deleted_count} invoice(s)")
     if locked_skipped > 0:
-        flash(f"Deleted {deleted_count} invoice(s). {locked_skipped} locked invoice(s) were not deleted.", "success")
-    else:
-        flash(f"Deleted {deleted_count} invoice(s).", "success")
+        msg_parts.append(f"{locked_skipped} locked")
+    if has_credit_notes_skipped > 0:
+        msg_parts.append(f"{has_credit_notes_skipped} have credit notes")
+    
+    flash(".".join(msg_parts) + ".", "success")
     
     return redirect(url_for("invoices.manage_invoices"))
 
