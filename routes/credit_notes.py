@@ -570,6 +570,7 @@ def import_credit_notes():
     csv_reader = csv.DictReader(stream)
     
     imported = 0
+    updated = 0
     errors = []
     
     def clean_numeric(value_str):
@@ -590,6 +591,7 @@ def import_credit_notes():
             sgst_rate_str = (row.get("sgst_rate") or "0").strip()
             reason = (row.get("reason") or "").strip()
             place_of_supply = (row.get("place_of_supply") or "").strip()
+            credit_note_no = (row.get("credit_note_no") or "").strip() or None
             
             if not party_gstin or not credit_note_date_str:
                 errors.append(f"Row {row_num}: Missing party GSTIN or credit note date")
@@ -610,6 +612,10 @@ def import_credit_notes():
             invoice = Invoice.query.filter_by(invoice_no=reference_invoice_no).first()
             if not invoice:
                 errors.append(f"Row {row_num}: Invoice with number {reference_invoice_no} not found")
+                continue
+            
+            if invoice.locked:
+                errors.append(f"Row {row_num}: Invoice {reference_invoice_no} is locked, cannot create credit note")
                 continue
             
             party = Party.query.filter_by(gstin=party_gstin).first()
@@ -644,27 +650,55 @@ def import_credit_notes():
                 cgst_amt = (taxable_value * Decimal(str(cgst_rate)) / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 sgst_amt = (taxable_value * Decimal(str(sgst_rate)) / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             
-            credit_note = CreditNote(
-                credit_note_date=credit_note_date,
-                invoice_id=invoice.id,
-                reason=reason,
-                tax_type=tax_type,
-                place_of_supply=place_of_supply,
-                locked=False,
-                party_name=party.name,
-                party_address=party.address,
-                party_gstin=party.gstin,
-                party_pan=party.pan,
-                party_state=party.state,
-                party_state_code=party.state_code,
-                company_name=invoice.company_name,
-                company_address=invoice.company_address,
-                company_gstin=invoice.company_gstin,
-                company_pan=invoice.company_pan,
-            )
+            existing_credit_note = None
+            if credit_note_no:
+                existing_credit_note = CreditNote.query.filter_by(credit_note_no=credit_note_no).first()
             
-            db.session.add(credit_note)
-            db.session.flush()
+            if existing_credit_note:
+                if existing_credit_note.invoice.locked:
+                    errors.append(f"Row {row_num}: Credit note {credit_note_no} is linked to locked invoice")
+                    continue
+                
+                existing_credit_note.credit_note_date = credit_note_date
+                existing_credit_note.invoice_id = invoice.id
+                existing_credit_note.reason = reason
+                existing_credit_note.tax_type = tax_type
+                existing_credit_note.place_of_supply = place_of_supply
+                existing_credit_note.party_name = party.name
+                existing_credit_note.party_address = party.address
+                existing_credit_note.party_gstin = party.gstin
+                existing_credit_note.party_pan = party.pan
+                existing_credit_note.party_state = party.state
+                existing_credit_note.party_state_code = party.state_code
+                existing_credit_note.company_name = invoice.company_name
+                existing_credit_note.company_address = invoice.company_address
+                existing_credit_note.company_gstin = invoice.company_gstin
+                existing_credit_note.company_pan = invoice.company_pan
+                
+                CreditNoteItem.query.filter_by(credit_note_id=existing_credit_note.id).delete()
+                credit_note = existing_credit_note
+            else:
+                credit_note = CreditNote(
+                    credit_note_no=credit_note_no,
+                    credit_note_date=credit_note_date,
+                    invoice_id=invoice.id,
+                    reason=reason,
+                    tax_type=tax_type,
+                    place_of_supply=place_of_supply,
+                    locked=False,
+                    party_name=party.name,
+                    party_address=party.address,
+                    party_gstin=party.gstin,
+                    party_pan=party.pan,
+                    party_state=party.state,
+                    party_state_code=party.state_code,
+                    company_name=invoice.company_name,
+                    company_address=invoice.company_address,
+                    company_gstin=invoice.company_gstin,
+                    company_pan=invoice.company_pan,
+                )
+                db.session.add(credit_note)
+                db.session.flush()
             
             item = CreditNoteItem(
                 credit_note_id=credit_note.id,
@@ -679,13 +713,21 @@ def import_credit_notes():
             )
             db.session.add(item)
             
-            imported += 1
+            if existing_credit_note:
+                updated += 1
+            else:
+                imported += 1
         except Exception as e:
             errors.append(f"Row {row_num}: {str(e)}")
     
-    if imported > 0:
+    if imported > 0 or updated > 0:
         db.session.commit()
-        flash(f"Successfully imported {imported} credit notes", "success")
+        if imported > 0 and updated > 0:
+            flash(f"Created {imported} credit note(s), updated {updated} credit note(s)", "success")
+        elif imported > 0:
+            flash(f"Successfully imported {imported} credit note(s)", "success")
+        else:
+            flash(f"Successfully updated {updated} credit note(s)", "success")
     
     if errors:
         for error in errors[:10]:
