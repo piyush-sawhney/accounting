@@ -163,6 +163,15 @@ def generate_invoice_numbers():
         db.session.add(seq_record)
         db.session.flush()
     
+    existing = Invoice.query.filter(
+        Invoice.invoice_no.like(f"{fy_prefix}/%")
+    ).order_by(Invoice.invoice_no.desc()).first()
+    
+    if existing:
+        max_num = int(existing.invoice_no.split("/")[-1])
+        if seq_record.last_number < max_num:
+            seq_record.last_number = max_num
+    
     seq = seq_record.last_number
     
     for invoice in pending:
