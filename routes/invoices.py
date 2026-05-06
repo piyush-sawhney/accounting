@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, make_response, session
 import os, io, zipfile
 from datetime import datetime
 from openpyxl import Workbook
@@ -14,7 +14,7 @@ from models import (
     db,
 )
 from forms import InvoiceForm, CreditNoteForm
-from utils import login_required, parse_date, validate_tax_rates, number_to_words, get_current_company, get_export_path
+from utils import login_required, parse_date, validate_tax_rates, number_to_words, get_current_company, get_export_path, get_pdfkit_config
 from decimal import Decimal, ROUND_HALF_UP
 
 
@@ -27,10 +27,31 @@ invoices_bp = Blueprint('invoices', __name__)
 def manage_invoices():
     year = request.args.get("year")
     month = request.args.get("month")
-    # Only set defaults if not explicitly provided (for first load)
-    if year is None:
+    is_reset = year == "" and month == ""
+    is_filter_submission = bool(year) or bool(month)
+
+    filter_from_session = session.get('invoice_filter', {})
+
+    if is_reset:
+        session.pop('invoice_filter', None)
         year = str(datetime.now().year)
-    if month is None:
+        month = str(datetime.now().month).zfill(2)
+    elif is_filter_submission:
+        if year:
+            filter_from_session['year'] = year
+        if month:
+            filter_from_session['month'] = month
+        if year or month:
+            session['invoice_filter'] = filter_from_session
+    elif not year and not month:
+        if filter_from_session:
+            year = filter_from_session.get('year')
+            month = filter_from_session.get('month')
+        else:
+            year = str(datetime.now().year)
+            month = str(datetime.now().month).zfill(2)
+    else:
+        year = str(datetime.now().year)
         month = str(datetime.now().month).zfill(2)
     search = request.args.get("search", "").strip()
     sort_by = request.args.get("sort_by", "date")
@@ -376,8 +397,18 @@ def generate_pdf(invoice_id):
     html_content = render_template("invoice_pdf_template.html", invoice=invoice, settings=settings)
     pdf_path = get_export_path(invoice)
     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-    pdfkit.from_string(html_content, pdf_path)
-    return send_file(pdf_path, as_attachment=False, mimetype='application/pdf')
+    pdfkit_config = get_pdfkit_config()
+    try:
+        pdfkit.from_string(html_content, pdf_path, configuration=pdfkit_config)
+    except Exception as e:
+        flash(f"PDF generation failed: {str(e)}", "danger")
+        return redirect(url_for("invoices.view_invoice", invoice_id=invoice_id))
+    
+    if not os.path.exists(pdf_path):
+        flash("PDF generation failed - file not created", "danger")
+        return redirect(url_for("invoices.view_invoice", invoice_id=invoice_id))
+    
+    return send_file(pdf_path, as_attachment=True, mimetype='application/pdf')
 
 
 @invoices_bp.route("/invoice/preview-html/<int:invoice_id>")
@@ -434,7 +465,13 @@ def batch_export():
             html_content = render_template("invoice_pdf_template.html", invoice=invoice, settings=settings)
             pdf_path = get_export_path(invoice)
             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-            pdfkit.from_string(html_content, pdf_path)
+            pdfkit_config = get_pdfkit_config()
+            try:
+                pdfkit.from_string(html_content, pdf_path, configuration=pdfkit_config)
+                if not os.path.exists(pdf_path):
+                    continue
+            except Exception:
+                continue
             zip_file.write(pdf_path, os.path.basename(pdf_path))
             os.remove(pdf_path)
             exported_count += 1
@@ -617,13 +654,11 @@ def batch_export_excel():
     output.seek(0)
 
     filename = f"invoices_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return make_response(
-        send_file(
-            output,
-            as_attachment=False,
-            download_name=filename,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 

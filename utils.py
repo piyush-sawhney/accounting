@@ -4,6 +4,8 @@ from flask import redirect, url_for, session, flash, current_app
 from models import Company, db
 import os
 import re
+import shutil
+import pdfkit
 
 def parse_date(date_str):
     if not date_str: return None
@@ -182,4 +184,22 @@ def generate_invoice_numbers():
     db.session.commit()
     
     return len(pending)
+
+def get_pdfkit_config():
+    import shutil
+    wkhtmltopdf_path = os.environ.get('WKHTMLTOPDF_PATH')
+    if not wkhtmltopdf_path:
+        wkhtmltopdf_path = shutil.which('wkhtmltopdf')
+        if not wkhtmltopdf_path:
+            for path in [
+                r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe',
+                r'C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe',
+                r'C:\wkhtmltopdf\bin\wkhtmltopdf.exe',
+            ]:
+                if os.path.exists(path):
+                    wkhtmltopdf_path = path
+                    break
+    if wkhtmltopdf_path:
+        return pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
+    return None
 

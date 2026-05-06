@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session
 import io, csv, os, re
 from datetime import datetime
 from openpyxl import Workbook
@@ -16,10 +16,31 @@ credit_notes_bp = Blueprint('credit_notes', __name__)
 def manage_credit_notes():
     year = request.args.get("year")
     month = request.args.get("month")
-    # Only set defaults if not explicitly provided (for first load)
-    if year is None:
+    is_reset = year == "" and month == ""
+    is_filter_submission = bool(year) or bool(month)
+
+    filter_from_session = session.get('credit_note_filter', {})
+
+    if is_reset:
+        session.pop('credit_note_filter', None)
         year = str(datetime.now().year)
-    if month is None:
+        month = str(datetime.now().month).zfill(2)
+    elif is_filter_submission:
+        if year:
+            filter_from_session['year'] = year
+        if month:
+            filter_from_session['month'] = month
+        if year or month:
+            session['credit_note_filter'] = filter_from_session
+    elif not year and not month:
+        if filter_from_session:
+            year = filter_from_session.get('year')
+            month = filter_from_session.get('month')
+        else:
+            year = str(datetime.now().year)
+            month = str(datetime.now().month).zfill(2)
+    else:
+        year = str(datetime.now().year)
         month = str(datetime.now().month).zfill(2)
     search = request.args.get("search", "").strip()
     sort_by = request.args.get("sort_by", "date")
@@ -583,7 +604,7 @@ def import_credit_notes():
         try:
             party_gstin = (row.get("party_gstin") or "").strip().upper()
             credit_note_date_str = (row.get("credit_note_date") or "").strip()
-            reference_invoice_no = (row.get("reference_invoice_number") or "").strip()
+            reference_invoice_no = (row.get("reference_invoice_number") or row.get("invoice_no") or "").strip()
             description = (row.get("description") or "").strip()
             taxable_value_str = (row.get("taxable_value") or "0").strip()
             igst_rate_str = (row.get("igst_rate") or "0").strip()
@@ -592,6 +613,18 @@ def import_credit_notes():
             reason = (row.get("reason") or "").strip()
             place_of_supply = (row.get("place_of_supply") or "").strip()
             credit_note_no = (row.get("credit_note_no") or "").strip() or None
+            
+            if not reference_invoice_no:
+                errors.append(f"Row {row_num}: Missing reference invoice number")
+                continue
+            
+            invoice = Invoice.query.filter_by(invoice_no=reference_invoice_no).first()
+            if not invoice:
+                errors.append(f"Row {row_num}: Invoice with number {reference_invoice_no} not found")
+                continue
+            
+            if not party_gstin and invoice.party:
+                party_gstin = invoice.party.gstin.upper()
             
             if not party_gstin or not credit_note_date_str:
                 errors.append(f"Row {row_num}: Missing party GSTIN or credit note date")
@@ -603,19 +636,6 @@ def import_credit_notes():
             
             if not taxable_value_str:
                 errors.append(f"Row {row_num}: Missing taxable_value")
-                continue
-            
-            if not reference_invoice_no:
-                errors.append(f"Row {row_num}: Missing reference invoice number")
-                continue
-            
-            invoice = Invoice.query.filter_by(invoice_no=reference_invoice_no).first()
-            if not invoice:
-                errors.append(f"Row {row_num}: Invoice with number {reference_invoice_no} not found")
-                continue
-            
-            if invoice.locked:
-                errors.append(f"Row {row_num}: Invoice {reference_invoice_no} is locked, cannot create credit note")
                 continue
             
             party = Party.query.filter_by(gstin=party_gstin).first()
