@@ -27,8 +27,10 @@ invoices_bp = Blueprint('invoices', __name__)
 def manage_invoices():
     year = request.args.get("year")
     month = request.args.get("month")
-    is_reset = year == "" and month == ""
-    is_filter_submission = bool(year) or bool(month)
+    year_reset = year == ""
+    month_reset = month == ""
+    is_reset = year_reset and month_reset
+    is_filter_submission = (year and not year_reset) or (month and not month_reset)
 
     filter_from_session = session.get('invoice_filter', {})
 
@@ -37,11 +39,11 @@ def manage_invoices():
         year = str(datetime.now().year)
         month = str(datetime.now().month).zfill(2)
     elif is_filter_submission:
-        if year:
+        if year and not year_reset:
             filter_from_session['year'] = year
-        if month:
+        if month and not month_reset:
             filter_from_session['month'] = month
-        if year or month:
+        if (year and not year_reset) or (month and not month_reset):
             session['invoice_filter'] = filter_from_session
     elif not year and not month:
         if filter_from_session:
@@ -65,9 +67,9 @@ def manage_invoices():
 
     query = Invoice.query.join(Party)
 
-    if year:
+    if year and not year_reset:
         query = query.filter(db.extract("year", Invoice.invoice_date) == int(year))
-    if month:
+    if month and not month_reset:
         query = query.filter(db.extract("month", Invoice.invoice_date) == int(month))
     if search:
         query = query.filter(

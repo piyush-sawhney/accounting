@@ -16,8 +16,10 @@ credit_notes_bp = Blueprint('credit_notes', __name__)
 def manage_credit_notes():
     year = request.args.get("year")
     month = request.args.get("month")
-    is_reset = year == "" and month == ""
-    is_filter_submission = bool(year) or bool(month)
+    year_reset = year == ""
+    month_reset = month == ""
+    is_reset = year_reset and month_reset
+    is_filter_submission = (year and not year_reset) or (month and not month_reset)
 
     filter_from_session = session.get('credit_note_filter', {})
 
@@ -26,11 +28,11 @@ def manage_credit_notes():
         year = str(datetime.now().year)
         month = str(datetime.now().month).zfill(2)
     elif is_filter_submission:
-        if year:
+        if year and not year_reset:
             filter_from_session['year'] = year
-        if month:
+        if month and not month_reset:
             filter_from_session['month'] = month
-        if year or month:
+        if (year and not year_reset) or (month and not month_reset):
             session['credit_note_filter'] = filter_from_session
     elif not year and not month:
         if filter_from_session:
@@ -52,9 +54,9 @@ def manage_credit_notes():
 
     query = CreditNote.query.join(Invoice, CreditNote.invoice_id == Invoice.id).join(Party, Invoice.party_id == Party.id)
 
-    if year:
+    if year and not year_reset:
         query = query.filter(db.extract("year", CreditNote.credit_note_date) == int(year))
-    if month:
+    if month and not month_reset:
         query = query.filter(db.extract("month", CreditNote.credit_note_date) == int(month))
     if search:
         query = query.filter(
