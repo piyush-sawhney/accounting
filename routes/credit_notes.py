@@ -5,7 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 import pdfkit
 from models import CreditNote, CreditNoteItem, Invoice, Party, Company, db
-from utils import login_required, get_current_company
+from utils import login_required, get_current_company, get_pdfkit_config
 from decimal import Decimal, ROUND_HALF_UP
 
 credit_notes_bp = Blueprint('credit_notes', __name__)
@@ -352,7 +352,8 @@ def generate_credit_note_pdf(credit_note_id):
     
     cn_no = sanitize(credit_note.credit_note_no or f"cn_{credit_note.id}")
     pdf_path = os.path.join(export_folder, f"credit_note_{cn_no}.pdf")
-    pdfkit.from_string(html_content, pdf_path)
+    pdfkit_config = get_pdfkit_config()
+    pdfkit.from_string(html_content, pdf_path, configuration=pdfkit_config)
     
     return send_file(pdf_path, as_attachment=False, mimetype='application/pdf')
 
