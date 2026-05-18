@@ -7,6 +7,7 @@ temp_exports/
 *.db
 app.py.backup
 =======
+static/sign/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

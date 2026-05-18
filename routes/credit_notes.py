@@ -324,6 +324,7 @@ def delete_credit_note(credit_note_id):
 @login_required
 def generate_credit_note_pdf(credit_note_id):
     from flask import current_app
+    import base64
     credit_note = CreditNote.query.get_or_404(credit_note_id)
     
     def sanitize(name):
@@ -331,6 +332,9 @@ def generate_credit_note_pdf(credit_note_id):
         name = re.sub(r'[<>:"/\\|?*&]', "_", name)
         return re.sub(r"_+", "_", name).strip("_")
     
+    sig_path = os.path.join(current_app.root_path, "static", "sign", "ns_sign.jpeg")
+    with open(sig_path, "rb") as f:
+        sig_b64 = base64.b64encode(f.read()).decode("ascii")
     settings = {
         "company_name": credit_note.company_name or "Not set",
         "address": credit_note.company_address or "",
@@ -339,6 +343,7 @@ def generate_credit_note_pdf(credit_note_id):
         "logo": "",
         "place_of_supply": credit_note.place_of_supply or "",
         "state_code": "",
+        "signature_image": f"data:image/jpeg;base64,{sig_b64}",
     }
     html_content = render_template("credit_note_pdf_template.html", credit_note=credit_note, settings=settings)
     

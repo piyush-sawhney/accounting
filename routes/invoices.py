@@ -386,7 +386,12 @@ def view_invoice(invoice_id):
 @invoices_bp.route("/invoice/pdf/<int:invoice_id>")
 @login_required
 def generate_pdf(invoice_id):
+    from flask import current_app
+    import base64
     invoice = Invoice.query.get_or_404(invoice_id)
+    sig_path = os.path.join(current_app.root_path, "static", "sign", "ns_sign.jpeg")
+    with open(sig_path, "rb") as f:
+        sig_b64 = base64.b64encode(f.read()).decode("ascii")
     settings = {
         "company_name": invoice.company_name or "Not set",
         "address": invoice.company_address or "",
@@ -395,6 +400,7 @@ def generate_pdf(invoice_id):
         "logo": "",
         "place_of_supply": invoice.place_of_supply or "",
         "state_code": "",
+        "signature_image": f"data:image/jpeg;base64,{sig_b64}",
     }
     html_content = render_template("invoice_pdf_template.html", invoice=invoice, settings=settings)
     pdf_path = get_export_path(invoice)
